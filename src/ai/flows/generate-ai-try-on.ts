@@ -24,7 +24,7 @@ const GenerateAiTryOnInputSchema = z.object({
     .describe(
       'The item image as a data URI that must include a MIME type and use Base64 encoding. Expected format: data:<mimetype>;base64,<encoded_data>.'
     ),
-  model: z.enum(['googleai/gemini-2.0-flash', 'imagen3', 'imagen4']).describe('The AI model to use for generating the try-on image. Internally, "googleai/gemini-2.0-flash" maps to "googleai/gemini-2.0-flash-preview-image-generation", "imagen3" maps to "googleai/imagen-3.0-generate-002", and "imagen4" will attempt to use "googleai/imagen4".'),
+  model: z.enum(['googleai/gemini-2.0-flash', 'imagen3', 'imagen4']).describe('The AI model to use for generating the try-on image. "googleai/gemini-2.0-flash" maps to "googleai/gemini-2.0-flash-preview-image-generation", "imagen3" maps to "googleai/imagen-3.0-generate-002", and "imagen4" will attempt to use "googleai/imagen4".'),
 });
 
 export type GenerateAiTryOnInput = z.infer<typeof GenerateAiTryOnInputSchema>;
@@ -47,10 +47,21 @@ const generateAiTryOnPrompt = ai.definePrompt({
   name: 'generateAiTryOnPrompt',
   input: {schema: GenerateAiTryOnInputSchema},
   output: {schema: GenerateAiTryOnOutputSchema},
-  prompt: `Generate an image of the user wearing the selected item, use the specified AI model.
+  prompt: `The first input image (provided as 'User Image' {{media url=userImage}}) is the **user's photo**. Treat this as the base: the person’s face, pose, body, lighting, and background from this image **must remain completely unchanged.**
 
-User Image: {{media url=userImage}}
-Item Image: {{media url=itemImage}}`,
+The second input image (provided as 'Item Image' {{media url=itemImage}}) is the **product photo**. This product photo might show the item on a model or a mannequin. Your task is to **extract *only* the clothing item/garment** from this second (product) image. You must ignore any person, mannequin, or background elements present in the product photo. Focus solely on the garment itself.
+
+Then, realistically overlay this extracted clothing item onto the person in the first (user's) image.
+
+Rules and constraints:
+
+Do not modify the face in any way. Keep the exact facial features, expression, structure, lighting, skin texture, and hair from the original image. No regeneration, smoothing, or stylistic changes.
+Do not change the pose, body position, camera angle, or perspective.
+Do not create or imagine hidden body parts — preserve what is visible, and leave occluded parts untouched.
+Accurately wrap the extracted garment onto the visible body parts of the person in the user's photo, matching the contours, shape, and folds realistically.
+Do not alter the background of the user's photo.
+The final image must look like the person from the user's photo is wearing the new outfit — not like a new person or AI-generated lookalike.
+Your task is to replace clothing only on the person in the user's photo. Everything else in the user's photo must remain pixel-consistent or visually identical to the original.`,
 });
 
 const generateAiTryOnFlow = ai.defineFlow(
@@ -84,19 +95,21 @@ const generateAiTryOnFlow = ai.defineFlow(
       prompt: [
         {media: {url: input.userImage}}, // User image first
         {media: {url: input.itemImage}}, // Item image second
-        {text: `Use the first input image of a person as the base image. This person’s face, pose, body, lighting, and background must remain completely unchanged.
+        {text: `The first input image is the **user's photo**. Treat this as the base: the person’s face, pose, body, lighting, and background from this image **must remain completely unchanged.**
 
-Use the second input image of a costume or dress to extract only the clothing design, and overlay it realistically onto the visible parts of the person's body in the first image.
+The second input image is the **product photo**. This product photo might show the item on a model or a mannequin. Your task is to **extract *only* the clothing item/garment** from this second (product) image. You must ignore any person, mannequin, or background elements present in the product photo. Focus solely on the garment itself.
+
+Then, realistically overlay this extracted clothing item onto the person in the first (user's) image.
 
 Rules and constraints:
 
 Do not modify the face in any way. Keep the exact facial features, expression, structure, lighting, skin texture, and hair from the original image. No regeneration, smoothing, or stylistic changes.
 Do not change the pose, body position, camera angle, or perspective.
 Do not create or imagine hidden body parts — preserve what is visible, and leave occluded parts untouched.
-Accurately wrap the costume onto the visible body parts, matching the contours, shape, and folds realistically.
-Do not alter the background.
-The final image must look like the original person is wearing the new outfit — not like a new person or AI-generated lookalike.
-Your task is to replace clothing only. Everything else in the image must remain pixel-consistent or visually identical to the original.`},
+Accurately wrap the extracted garment onto the visible body parts of the person in the user's photo, matching the contours, shape, and folds realistically.
+Do not alter the background of the user's photo.
+The final image must look like the person from the user's photo is wearing the new outfit — not like a new person or AI-generated lookalike.
+Your task is to replace clothing only on the person in the user's photo. Everything else in the user's photo must remain pixel-consistent or visually identical to the original.`},
       ],
       config: {
         responseModalities: ['TEXT', 'IMAGE'], // MUST provide both TEXT and IMAGE
