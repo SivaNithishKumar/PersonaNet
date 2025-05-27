@@ -24,7 +24,7 @@ const GenerateAiTryOnInputSchema = z.object({
     .describe(
       'The item image as a data URI that must include a MIME type and use Base64 encoding. Expected format: data:<mimetype>;base64,<encoded_data>.'
     ),
-  model: z.enum(['googleai/gemini-2.0-flash', 'imagen3', 'imagen4']).describe('The AI model to use for generating the try-on image. The system will attempt to use the selected model. For Gemini Flash, "googleai/gemini-2.0-flash-exp" will be used. For Imagen models, compatibility with the current image generation method is experimental.'),
+  model: z.enum(['googleai/gemini-2.0-flash', 'imagen3', 'imagen4']).describe('The AI model to use for generating the try-on image. Internally, "googleai/gemini-2.0-flash" maps to "googleai/gemini-2.0-flash-preview-image-generation", "imagen3" maps to "googleai/imagen-3.0-generate-002", and "imagen4" will attempt to use "googleai/imagen4".'),
 });
 
 export type GenerateAiTryOnInput = z.infer<typeof GenerateAiTryOnInputSchema>;
@@ -60,19 +60,27 @@ const generateAiTryOnFlow = ai.defineFlow(
     outputSchema: GenerateAiTryOnOutputSchema,
   },
   async input => {
-    let actualModelToUse = input.model;
+    let actualModelToUse: string;
 
-    // Per Genkit guidelines, only 'googleai/gemini-2.0-flash-exp' is confirmed for image generation.
-    // Map the UI selection for Gemini Flash to this experimental version.
-    if (input.model === 'googleai/gemini-2.0-flash') {
-      actualModelToUse = 'googleai/gemini-2.0-flash-exp';
+    switch (input.model) {
+      case 'googleai/gemini-2.0-flash':
+        actualModelToUse = 'googleai/gemini-2.0-flash-preview-image-generation';
+        break;
+      case 'imagen3':
+        actualModelToUse = 'googleai/imagen-3.0-generate-002';
+        break;
+      case 'imagen4':
+        actualModelToUse = 'googleai/imagen4'; // Or a more specific Imagen 4 identifier if known
+        break;
+      default:
+        console.warn(`Unknown model selected: ${input.model}. Defaulting to Gemini Flash for image generation.`);
+        actualModelToUse = 'googleai/gemini-2.0-flash-preview-image-generation';
     }
-    // For 'imagen3' and 'imagen4', we pass them directly.
-    // Their functionality for image generation via this method is experimental
-    // and depends on the googleAI plugin's capability to handle these identifiers.
+    
+    console.log(`Attempting AI try-on with model: ${actualModelToUse}`);
 
     const {media} = await ai.generate({
-      model: actualModelToUse, // Use the determined model
+      model: actualModelToUse,
       prompt: [
         {media: {url: input.userImage}}, // User image first
         {media: {url: input.itemImage}}, // Item image second
@@ -103,3 +111,4 @@ Your task is to replace clothing only. Everything else in the image must remain 
     return {generatedImage: media.url};
   }
 );
+
