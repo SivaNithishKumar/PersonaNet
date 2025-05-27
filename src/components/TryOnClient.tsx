@@ -3,8 +3,8 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { getProductById, type Product } from '@/lib/products';
-import type { TryOnPageProps } from '@/app/(main)/[gender]/[itemId]/page'; // Import TryOnPageProps from page.tsx
+import type { Product } from '@/lib/products';
+// No longer importing TryOnPageProps from page.tsx
 import { ImageUploader } from '@/components/ImageUploader';
 import { ModelSelector } from '@/components/ModelSelector';
 import { Button } from '@/components/ui/button';
@@ -22,29 +22,29 @@ import {
 } from "@/components/ui/tooltip"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
-// TryOnPageProps is now imported from the page component
+// Define props for TryOnClient
+interface TryOnClientProps {
+  params: {
+    gender: 'men' | 'women' | 'all';
+    itemId: string; // itemId is still part of params for potential future use or context
+  };
+  product: Product; // Product is now a direct prop
+}
 
-export function TryOnClient({ params }: TryOnPageProps) {
-  const [product, setProduct] = useState<Product | null>(null);
+export function TryOnClient({ params, product }: TryOnClientProps) {
+  // Product data is now received as a prop, no need for useState for product or useEffect to fetch it.
   const [userImage, setUserImage] = useState<string | null>(null);
   const [validationResult, setValidationResult] = useState<ValidateImageOutput | null>(null);
   const [selectedModel, setSelectedModel] = useState<string>('googleai/gemini-2.0-flash');
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [isLoadingValidation, setIsLoadingValidation] = useState(false);
   const [isLoadingGeneration, setIsLoadingGeneration] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null); // Kept for other runtime errors
 
   const { toast } = useToast();
 
-  useEffect(() => {
-    const fetchedProduct = getProductById(params.itemId);
-    if (fetchedProduct) {
-      setProduct(fetchedProduct);
-    } else {
-      setError('Product not found.');
-      toast({ variant: 'destructive', title: 'Error', description: 'Product not found.' });
-    }
-  }, [params.itemId, toast]);
+  // The useEffect for fetching product and setError for "Product not found" is removed.
+  // The 'product' prop is used directly.
 
   const handleImageUpload = (dataUrl: string) => {
     setUserImage(dataUrl);
@@ -59,6 +59,7 @@ export function TryOnClient({ params }: TryOnPageProps) {
     }
     setIsLoadingValidation(true);
     setValidationResult(null);
+    setError(null); // Clear previous errors
     try {
       const result = await validateImage({ photoDataUri: userImage });
       setValidationResult(result);
@@ -74,7 +75,9 @@ export function TryOnClient({ params }: TryOnPageProps) {
       }
     } catch (err) {
       console.error('Validation error:', err);
-      toast({ variant: 'destructive', title: 'Validation Error', description: 'Could not validate the image.' });
+      const errorMessage = err instanceof Error ? err.message : 'Could not validate the image.';
+      setError(errorMessage);
+      toast({ variant: 'destructive', title: 'Validation Error', description: errorMessage });
        setValidationResult({ isValid: false, reason: 'An error occurred during validation.', suggestions: 'Please try again or use a different image.' });
     } finally {
       setIsLoadingValidation(false);
@@ -88,51 +91,49 @@ export function TryOnClient({ params }: TryOnPageProps) {
     }
     setIsLoadingGeneration(true);
     setGeneratedImage(null);
+    setError(null); // Clear previous errors
 
-    // Convert product image URL to data URI if it's not already one
-    // This is a simplified approach. A more robust solution might involve fetching if it's an HTTP URL.
-    // For this example, assuming product.imageUrl is either a data URI or directly usable by the AI flow.
-    // If product.imageUrl is an external URL, it needs to be fetched and converted.
-    // The AI flow `generateAiTryOn` expects `itemImage` as a data URI.
     let itemImageDataUri = product.imageUrl;
+    // Note: The logic for handling non-data URI itemImage still exists as a potential issue
+    // as noted in the original code. For now, we proceed assuming it's usable.
     if (!product.imageUrl.startsWith('data:')) {
-        // Placeholder: In a real app, you'd fetch and convert.
-        // For now, we'll show a toast if it's not a data URI and prevent generation,
-        // as the AI flow will likely fail.
-        // This is a pre-existing logic challenge in the original code.
-        // We'll assume for now it might be a data URI or the user has a way to make it work.
-        // A proper fix would involve implementing imageUrlToDataUri robustly.
         console.warn("Product image URL is not a data URI. AI generation might fail if the model expects a data URI for the item image.");
-        // To actually block, you might do:
-        // toast({ variant: 'destructive', title: 'Item Image Error', description: 'Item image is not in the correct format for AI generation.' });
-        // setIsLoadingGeneration(false);
-        // return;
     }
-
 
     try {
       const result = await generateAiTryOn({
         userImage: userImage,
-        itemImage: itemImageDataUri,
+        itemImage: itemImageDataUri, // Use product.imageUrl directly
         model: selectedModel,
       });
       setGeneratedImage(result.generatedImage);
       toast({ title: 'Try-On Complete!', description: 'Check out your new look.', className: 'bg-primary text-primary-foreground' });
     } catch (err) {
       console.error('Generation error:', err);
-      toast({ variant: 'destructive', title: 'Generation Error', description: 'Could not generate the try-on image.' });
+      const errorMessage = err instanceof Error ? err.message : 'Could not generate the try-on image.';
+      setError(errorMessage);
+      toast({ variant: 'destructive', title: 'Generation Error', description: errorMessage });
     } finally {
       setIsLoadingGeneration(false);
     }
   };
 
-  if (error) {
-    return <div className="container mx-auto px-4 py-8 text-center text-destructive">{error}</div>;
+  // This error display is for other runtime errors (validation, generation),
+  // not for initial product loading.
+  if (error && !isLoadingValidation && !isLoadingGeneration) {
+    return (
+      <div className="container mx-auto px-4 py-8 text-center">
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>An Error Occurred</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+        <Button onClick={() => setError(null)} className="mt-4">Try again</Button>
+      </div>
+    );
   }
 
-  if (!product) {
-    return <div className="container mx-auto px-4 py-8 text-center"><LoadingSpinner text="Loading product..." /></div>;
-  }
+  // Product is guaranteed by the server component, so no loading state for product needed here.
   
   const isTryOnDisabled = isLoadingGeneration || !validationResult?.isValid || !userImage;
 
@@ -143,9 +144,11 @@ export function TryOnClient({ params }: TryOnPageProps) {
         <CardHeader className="bg-muted/30">
           <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
             <div className="relative w-full md:w-1/4 aspect-[3/4] md:aspect-square rounded-lg overflow-hidden border">
+              {/* Use product prop here */}
               <Image src={product.imageUrl} alt={product.name} layout="fill" objectFit="cover" data-ai-hint={product.hint}/>
             </div>
             <div className="flex-1">
+              {/* Use product prop here */}
               <CardTitle className="text-3xl font-bold">{product.name}</CardTitle>
               <CardDescription className="text-lg text-muted-foreground">{product.description}</CardDescription>
               <p className="text-2xl font-semibold text-primary mt-2">{product.price}</p>

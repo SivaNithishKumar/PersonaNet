@@ -1,6 +1,7 @@
 
-import { getProductById } from '@/lib/products';
+import { getProductById, type Product } from '@/lib/products';
 import { TryOnClient } from '@/components/TryOnClient';
+import { notFound } from 'next/navigation';
 
 // Define TryOnPageProps here
 export interface TryOnPageProps {
@@ -24,7 +25,12 @@ export async function generateMetadata({ params }: TryOnPageProps) {
 }
 
 export default function TryOnPage({ params }: TryOnPageProps) {
-  // This page is now a Server Component.
-  // It will render the TryOnClient component, which handles client-side logic.
-  return <TryOnClient params={params} />;
+  const product = getProductById(params.itemId);
+
+  if (!product) {
+    notFound();
+  }
+
+  // Product is guaranteed to exist here
+  return <TryOnClient params={params} product={product} />;
 }
