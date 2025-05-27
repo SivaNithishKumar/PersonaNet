@@ -69,7 +69,19 @@ const generateAiTryOnFlow = ai.defineFlow(
       prompt: [
         {media: {url: input.userImage}}, // User image first
         {media: {url: input.itemImage}}, // Item image second
-        {text: "Create a new photorealistic image. This new image must clearly show the person from the first image (User Image) wearing the clothing item from the second image (Item Image). It is crucial to preserve the person's original appearance, face, and pose from the User Image as accurately as possible. The clothing item from the Item Image should be realistically adapted, resized, and fitted onto the person. The final output must be a single, new, combined image. Do not simply return or slightly alter one of the original input images. Generate a high-quality try-on image."},
+        {text: `Use the first input image of a person as the base image. This person’s face, pose, body, lighting, and background must remain completely unchanged.
+
+Use the second input image of a costume or dress to extract only the clothing design, and overlay it realistically onto the visible parts of the person's body in the first image.
+
+Rules and constraints:
+
+Do not modify the face in any way. Keep the exact facial features, expression, structure, lighting, skin texture, and hair from the original image. No regeneration, smoothing, or stylistic changes.
+Do not change the pose, body position, camera angle, or perspective.
+Do not create or imagine hidden body parts — preserve what is visible, and leave occluded parts untouched.
+Accurately wrap the costume onto the visible body parts, matching the contours, shape, and folds realistically.
+Do not alter the background.
+The final image must look like the original person is wearing the new outfit — not like a new person or AI-generated lookalike.
+Your task is to replace clothing only. Everything else in the image must remain pixel-consistent or visually identical to the original.`},
       ],
       config: {
         responseModalities: ['TEXT', 'IMAGE'], // MUST provide both TEXT and IMAGE
