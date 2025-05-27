@@ -11,6 +11,7 @@
  */
 
 import {ai} from '@/ai/genkit';
+import {GenerateMediaOptions, GenerateMediaOutput, generateMedia} from 'genkit/generate';
 import {z} from 'genkit';
 
 const GenerateAiTryOnInputSchema = z.object({
@@ -24,7 +25,7 @@ const GenerateAiTryOnInputSchema = z.object({
     .describe(
       'The item image as a data URI that must include a MIME type and use Base64 encoding. Expected format: data:<mimetype>;base64,<encoded_data>.'
     ),
-  model: z.enum(['googleai/gemini-2.0-flash', 'imagen3', 'imagen4']).describe('The AI model to use for generating the try-on image. "googleai/gemini-2.0-flash" maps to "googleai/gemini-2.0-flash-preview-image-generation", "imagen3" maps to "googleai/imagen-3.0-generate-002", and "imagen4" will attempt to use "googleai/imagen4".'),
+  model: z.enum(['googleai/gemini-2.0-flash', 'imagen3', 'imagen4']).describe('The AI model to use for generating the try-on image. "googleai/gemini-2.0-flash" maps to Gemini Flash, "imagen3" maps to Imagen 3 on Vertex AI, and "imagen4" maps to Imagen 4 on Vertex AI.'),
 });
 
 export type GenerateAiTryOnInput = z.infer<typeof GenerateAiTryOnInputSchema>;
@@ -57,8 +58,6 @@ Do not alter the background of the user's photo.
 The final image must look like the person from the user's photo is wearing the new outfit — not like a new person or AI-generated lookalike.
 Your task is to replace clothing only on the person in the user's photo. Everything else in the user's photo must remain pixel-consistent or visually identical to the original.`;
 
-// This prompt definition is for potential future use or if a different Genkit method requires it.
-// The main flow currently uses ai.generate() directly with the prompt text.
 const generateAiTryOnPrompt = ai.definePrompt({
   name: 'generateAiTryOnPrompt',
   input: {schema: GenerateAiTryOnInputSchema},
@@ -86,56 +85,80 @@ const generateAiTryOnFlow = ai.defineFlow(
     inputSchema: GenerateAiTryOnInputSchema,
     outputSchema: GenerateAiTryOnOutputSchema,
   },
-  async input => {
-    let actualModelToUse: string;
-    let generationConfig: { responseModalities?: ('TEXT' | 'IMAGE')[] };
+  async (input: GenerateAiTryOnInput) => {
+    let generationOptions: GenerateMediaOptions;
+    let modelToUse: string;
 
     switch (input.model) {
       case 'googleai/gemini-2.0-flash':
-        actualModelToUse = 'googleai/gemini-2.0-flash-preview-image-generation';
-        generationConfig = { responseModalities: ['TEXT', 'IMAGE'] }; // Required for Gemini Flash image generation
+        modelToUse = 'googleai/gemini-2.0-flash-preview-image-generation';
+        generationOptions = {
+          model: modelToUse,
+          prompt: [
+            {media: {url: input.userImage}},
+            {media: {url: input.itemImage}},
+            {text: tryOnPromptText},
+          ],
+          config: { responseModalities: ['TEXT', 'IMAGE'] },
+        };
         break;
       case 'imagen3':
-        actualModelToUse = 'googleai/imagen-3.0-generate-002';
-        generationConfig = { responseModalities: ['IMAGE'] }; // Attempting IMAGE only for Imagen
+        modelToUse = 'vertexai/imagen3';
+        generationOptions = {
+          model: modelToUse,
+          prompt: [
+            {media: {url: input.userImage}},
+            {media: {url: input.itemImage}},
+            {text: tryOnPromptText},
+          ],
+          output: { format: 'media' },
+          // config: { temperature: 0.7 }, // Optional: Can add if needed
+        };
         break;
       case 'imagen4':
-        actualModelToUse = 'googleai/imagen4'; // Or a more specific Imagen 4 identifier if known
-        generationConfig = { responseModalities: ['IMAGE'] }; // Attempting IMAGE only for Imagen
+        modelToUse = 'vertexai/imagen4'; // Assuming imagen4 on Vertex follows similar pattern
+        generationOptions = {
+          model: modelToUse,
+          prompt: [
+            {media: {url: input.userImage}},
+            {media: {url: input.itemImage}},
+            {text: tryOnPromptText},
+          ],
+          output: { format: 'media' },
+        };
         break;
       default:
-        console.warn(`Unknown model selected: ${input.model}. Defaulting to Gemini Flash for image generation.`);
-        actualModelToUse = 'googleai/gemini-2.0-flash-preview-image-generation';
-        generationConfig = { responseModalities: ['TEXT', 'IMAGE'] };
+        console.warn(`Unknown model selected: ${input.model}. Defaulting to Gemini Flash.`);
+        modelToUse = 'googleai/gemini-2.0-flash-preview-image-generation';
+        generationOptions = {
+          model: modelToUse,
+          prompt: [
+            {media: {url: input.userImage}},
+            {media: {url: input.itemImage}},
+            {text: tryOnPromptText},
+          ],
+          config: { responseModalities: ['TEXT', 'IMAGE'] },
+        };
     }
     
-    console.log(`Attempting AI try-on with model: ${actualModelToUse} and config:`, generationConfig);
+    console.log(`Attempting AI try-on with model: ${modelToUse} and options:`, JSON.stringify(generationOptions, null, 2));
 
     try {
-      const {media} = await ai.generate({
-        model: actualModelToUse,
-        prompt: [
-          {media: {url: input.userImage}}, // User image first
-          {media: {url: input.itemImage}}, // Item image second
-          {text: tryOnPromptText},
-        ],
-        config: generationConfig,
-      });
+      const response: GenerateMediaOutput = await ai.generate(generationOptions as any); // Use 'as any' to bypass strict type check if options vary significantly
 
-      if (!media || !media.url) {
-        console.error('AI model did not return an image. Response media:', media, 'Model used:', actualModelToUse);
-        throw new Error(`AI model (${actualModelToUse}) did not return an image. Please try again, select a different model, or adjust the input images.`);
+      if (!response.media || !response.media.url) {
+        console.error('AI model did not return an image. Response:', response, 'Model used:', modelToUse);
+        throw new Error(`AI model (${modelToUse}) did not return an image. Please try again, select a different model, or adjust the input images.`);
       }
 
-      return {generatedImage: media.url};
+      return {generatedImage: response.media.url};
     } catch (error) {
-      console.error(`Error during AI try-on with model ${actualModelToUse}:`, error);
+      console.error(`Error during AI try-on with model ${modelToUse}:`, error);
       let errorMessage = error instanceof Error ? error.message : 'An unknown error occurred during image generation.';
-      if (actualModelToUse.includes('imagen')) {
-        errorMessage += ` Note: Imagen models might have specific requirements or limitations with the current Genkit integration. The 'generateContent' API (often used by ai.generate) may not be supported for this Imagen model. Gemini Flash is the recommended model for broader compatibility with this setup.`;
+      if (modelToUse.includes('imagen') || modelToUse.includes('vertexai')) {
+         errorMessage += ` Note: Ensure the Vertex AI plugin is configured correctly and the project has the necessary APIs enabled (e.g., Vertex AI API) and permissions. Also, check if the model '${modelToUse}' supports multimodal input with the 'output: { format: "media" }' setting for this type of try-on task.`;
       }
       throw new Error(errorMessage);
     }
   }
 );
-
