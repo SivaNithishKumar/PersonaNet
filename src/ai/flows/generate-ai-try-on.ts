@@ -24,7 +24,7 @@ const GenerateAiTryOnInputSchema = z.object({
     .describe(
       'The item image as a data URI that must include a MIME type and use Base64 encoding. Expected format: data:<mimetype>;base64,<encoded_data>.'
     ),
-  model: z.enum(['googleai/gemini-2.0-flash', 'imagen3', 'imagen4']).describe('The AI model to use for generating the try-on image. Note: Currently, only googleai/gemini-2.0-flash-exp is used internally for image generation regardless of this selection.'),
+  model: z.enum(['googleai/gemini-2.0-flash', 'imagen3', 'imagen4']).describe('The AI model to use for generating the try-on image. The system will attempt to use the selected model. For Gemini Flash, "googleai/gemini-2.0-flash-exp" will be used. For Imagen models, compatibility with the current image generation method is experimental.'),
 });
 
 export type GenerateAiTryOnInput = z.infer<typeof GenerateAiTryOnInputSchema>;
@@ -60,12 +60,19 @@ const generateAiTryOnFlow = ai.defineFlow(
     outputSchema: GenerateAiTryOnOutputSchema,
   },
   async input => {
-    // IMPORTANT: Per Genkit guidelines, ONLY the 'googleai/gemini-2.0-flash-exp' model
-    // is currently able to generate images. We will use this model regardless of input.model.
-    const imageGenerationModel = 'googleai/gemini-2.0-flash-exp';
+    let actualModelToUse = input.model;
+
+    // Per Genkit guidelines, only 'googleai/gemini-2.0-flash-exp' is confirmed for image generation.
+    // Map the UI selection for Gemini Flash to this experimental version.
+    if (input.model === 'googleai/gemini-2.0-flash') {
+      actualModelToUse = 'googleai/gemini-2.0-flash-exp';
+    }
+    // For 'imagen3' and 'imagen4', we pass them directly.
+    // Their functionality for image generation via this method is experimental
+    // and depends on the googleAI plugin's capability to handle these identifiers.
 
     const {media} = await ai.generate({
-      model: imageGenerationModel,
+      model: actualModelToUse, // Use the determined model
       prompt: [
         {media: {url: input.userImage}}, // User image first
         {media: {url: input.itemImage}}, // Item image second
@@ -89,16 +96,10 @@ Your task is to replace clothing only. Everything else in the image must remain 
     });
 
     if (!media || !media.url) {
-      // This case can happen if the model decides to only return text or if generation fails.
-      console.error('AI model did not return an image. Response media:', media);
-      // Attempt to get text if available for more debug info
-      // const response = await ai.generate(...); // This would be a re-run
-      // const textContent = response.text; // Or some way to get the text from the original call
-      // throw new Error(`AI model did not return an image. Text response: ${textContent || 'No text content'}`);
-      throw new Error('AI model did not return an image. Please try again or adjust the input images.');
+      console.error('AI model did not return an image. Response media:', media, 'Model used:', actualModelToUse);
+      throw new Error(`AI model (${actualModelToUse}) did not return an image. Please try again, select a different model, or adjust the input images.`);
     }
 
     return {generatedImage: media.url};
   }
 );
-
