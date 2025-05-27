@@ -41,8 +41,24 @@ export async function generateAiTryOn(input: GenerateAiTryOnInput): Promise<Gene
   return generateAiTryOnFlow(input);
 }
 
-// Note: The 'generateAiTryOnPrompt' (ai.definePrompt) is defined but not currently used by the generateAiTryOnFlow.
-// The flow uses a direct ai.generate() call for multi-modal image generation.
+const tryOnPromptText = `The first input image is the **user's photo**. Treat this as the base: the person’s face, pose, body, lighting, and background from this image **must remain completely unchanged.**
+
+The second input image is the **product photo**. This product photo might show the item on a model or a mannequin. Your task is to **extract *only* the clothing item/garment** from this second (product) image. You must ignore any person, mannequin, or background elements present in the product photo. Focus solely on the garment itself.
+
+Then, realistically overlay this extracted clothing item onto the person in the first (user's) image.
+
+Rules and constraints:
+
+Do not modify the face in any way. Keep the exact facial features, expression, structure, lighting, skin texture, and hair from the original image. No regeneration, smoothing, or stylistic changes.
+Do not change the pose, body position, camera angle, or perspective.
+Do not create or imagine hidden body parts — preserve what is visible, and leave occluded parts untouched.
+Accurately wrap the extracted garment onto the visible body parts of the person in the user's photo, matching the contours, shape, and folds realistically.
+Do not alter the background of the user's photo.
+The final image must look like the person from the user's photo is wearing the new outfit — not like a new person or AI-generated lookalike.
+Your task is to replace clothing only on the person in the user's photo. Everything else in the user's photo must remain pixel-consistent or visually identical to the original.`;
+
+// This prompt definition is for potential future use or if a different Genkit method requires it.
+// The main flow currently uses ai.generate() directly with the prompt text.
 const generateAiTryOnPrompt = ai.definePrompt({
   name: 'generateAiTryOnPrompt',
   input: {schema: GenerateAiTryOnInputSchema},
@@ -72,56 +88,54 @@ const generateAiTryOnFlow = ai.defineFlow(
   },
   async input => {
     let actualModelToUse: string;
+    let generationConfig: { responseModalities?: ('TEXT' | 'IMAGE')[] };
 
     switch (input.model) {
       case 'googleai/gemini-2.0-flash':
         actualModelToUse = 'googleai/gemini-2.0-flash-preview-image-generation';
+        generationConfig = { responseModalities: ['TEXT', 'IMAGE'] }; // Required for Gemini Flash image generation
         break;
       case 'imagen3':
         actualModelToUse = 'googleai/imagen-3.0-generate-002';
+        generationConfig = { responseModalities: ['IMAGE'] }; // Attempting IMAGE only for Imagen
         break;
       case 'imagen4':
         actualModelToUse = 'googleai/imagen4'; // Or a more specific Imagen 4 identifier if known
+        generationConfig = { responseModalities: ['IMAGE'] }; // Attempting IMAGE only for Imagen
         break;
       default:
         console.warn(`Unknown model selected: ${input.model}. Defaulting to Gemini Flash for image generation.`);
         actualModelToUse = 'googleai/gemini-2.0-flash-preview-image-generation';
+        generationConfig = { responseModalities: ['TEXT', 'IMAGE'] };
     }
     
-    console.log(`Attempting AI try-on with model: ${actualModelToUse}`);
+    console.log(`Attempting AI try-on with model: ${actualModelToUse} and config:`, generationConfig);
 
-    const {media} = await ai.generate({
-      model: actualModelToUse,
-      prompt: [
-        {media: {url: input.userImage}}, // User image first
-        {media: {url: input.itemImage}}, // Item image second
-        {text: `The first input image is the **user's photo**. Treat this as the base: the person’s face, pose, body, lighting, and background from this image **must remain completely unchanged.**
+    try {
+      const {media} = await ai.generate({
+        model: actualModelToUse,
+        prompt: [
+          {media: {url: input.userImage}}, // User image first
+          {media: {url: input.itemImage}}, // Item image second
+          {text: tryOnPromptText},
+        ],
+        config: generationConfig,
+      });
 
-The second input image is the **product photo**. This product photo might show the item on a model or a mannequin. Your task is to **extract *only* the clothing item/garment** from this second (product) image. You must ignore any person, mannequin, or background elements present in the product photo. Focus solely on the garment itself.
+      if (!media || !media.url) {
+        console.error('AI model did not return an image. Response media:', media, 'Model used:', actualModelToUse);
+        throw new Error(`AI model (${actualModelToUse}) did not return an image. Please try again, select a different model, or adjust the input images.`);
+      }
 
-Then, realistically overlay this extracted clothing item onto the person in the first (user's) image.
-
-Rules and constraints:
-
-Do not modify the face in any way. Keep the exact facial features, expression, structure, lighting, skin texture, and hair from the original image. No regeneration, smoothing, or stylistic changes.
-Do not change the pose, body position, camera angle, or perspective.
-Do not create or imagine hidden body parts — preserve what is visible, and leave occluded parts untouched.
-Accurately wrap the extracted garment onto the visible body parts of the person in the user's photo, matching the contours, shape, and folds realistically.
-Do not alter the background of the user's photo.
-The final image must look like the person from the user's photo is wearing the new outfit — not like a new person or AI-generated lookalike.
-Your task is to replace clothing only on the person in the user's photo. Everything else in the user's photo must remain pixel-consistent or visually identical to the original.`},
-      ],
-      config: {
-        responseModalities: ['TEXT', 'IMAGE'], // MUST provide both TEXT and IMAGE
-      },
-    });
-
-    if (!media || !media.url) {
-      console.error('AI model did not return an image. Response media:', media, 'Model used:', actualModelToUse);
-      throw new Error(`AI model (${actualModelToUse}) did not return an image. Please try again, select a different model, or adjust the input images.`);
+      return {generatedImage: media.url};
+    } catch (error) {
+      console.error(`Error during AI try-on with model ${actualModelToUse}:`, error);
+      let errorMessage = error instanceof Error ? error.message : 'An unknown error occurred during image generation.';
+      if (actualModelToUse.includes('imagen')) {
+        errorMessage += ` Note: Imagen models might have specific requirements or limitations with the current Genkit integration. The 'generateContent' API (often used by ai.generate) may not be supported for this Imagen model. Gemini Flash is the recommended model for broader compatibility with this setup.`;
+      }
+      throw new Error(errorMessage);
     }
-
-    return {generatedImage: media.url};
   }
 );
 
