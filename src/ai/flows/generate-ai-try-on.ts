@@ -56,9 +56,14 @@ export type GenerateAiTryOnOutput = z.infer<typeof GenerateAiTryOnOutputSchema>;
 
 // Helper to extract base64 data and mime type from data URI
 function getImageDetailsFromDataURI(dataUri: string): { mimeType: string; data: string } {
+  if (!dataUri || typeof dataUri !== 'string') {
+    console.error("getImageDetailsFromDataURI called with invalid input:", dataUri);
+    throw new Error('Invalid input: dataUri must be a non-empty string.');
+  }
+  console.log("Attempting to parse data URI (first 100 chars):", dataUri.substring(0, 100));
   const match = dataUri.match(/^data:(image\/\w+);base64,(.*)$/);
   if (!match) {
-    console.error("Invalid image data URI format (first 100 chars):", dataUri.substring(0, 100));
+    console.error("Failed to parse data URI. Input (first 100 chars):", dataUri.substring(0, 100));
     throw new Error('Invalid image data URI. Expected format: data:<mimetype>;base64,<encoded_data>');
   }
   return { mimeType: match[1], data: match[2] };
@@ -70,6 +75,9 @@ async function _callImagen3WithSDK(
   itemImageUri: string,
   promptText: string
 ): Promise<GenerateAiTryOnOutput> {
+  console.log("_callImagen3WithSDK invoked. UserImage (first 100):", userImageUri ? userImageUri.substring(0,100) : "EMPTY_OR_NULL");
+  console.log("_callImagen3WithSDK invoked. ItemImage (first 100):", itemImageUri ? itemImageUri.substring(0,100) : "EMPTY_OR_NULL");
+
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     console.error("GEMINI_API_KEY environment variable is not set.");
@@ -215,5 +223,7 @@ const generateAiTryOnPromptDefinition = ai.definePrompt({
   output: {schema: GenerateAiTryOnOutputSchema}, 
   prompt: `User Image: {{media url=userImage}}, Item Image: {{media url=itemImage}}. Instructions: ${tryOnPromptText}`,
 });
+
+    
 
     
