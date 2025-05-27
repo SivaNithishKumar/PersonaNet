@@ -123,7 +123,7 @@ async function _callImagen3WithSDK(
     
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
-      model: "imagen-3.0-generate-002",
+      model: "imagen-3.0-generate-002", // This model does not support generateContent for this task.
        safetySettings: [ 
         { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
         { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
@@ -133,6 +133,7 @@ async function _callImagen3WithSDK(
     });
 
     console.log(`Attempting AI try-on with @google/generative-ai SDK. Model: imagen-3.0-generate-002`);
+    console.log("This call is expected to fail with a 404 error as 'imagen-3.0-generate-002' does not support 'generateContent' for this type of multimodal input via the Generative Language API.");
     
     const result = await model.generateContent({
       contents: [{ role: "user", parts }],
@@ -169,11 +170,18 @@ async function _callImagen3WithSDK(
 
 
 export async function generateAiTryOn(input: GenerateAiTryOnInput): Promise<GenerateAiTryOnOutput> {
-  if (input.model === 'imagen3' || input.model === 'imagen4') { // Imagen 4 falls back to Imagen 3 logic
-    console.log(`Routing to Imagen 3 SDK for model: ${input.model}`);
-    return _callImagen3WithSDK(input.userImage, input.itemImage, tryOnPromptText);
+  if (input.model === 'imagen3' || input.model === 'imagen4') {
+    // The model 'imagen-3.0-generate-002' (used for 'imagen3' and 'imagen4' selections)
+    // is not supported for the 'generateContent' method via the @google/generative-ai SDK
+    // for complex multimodal tasks like virtual try-on. This will result in a 404 error from the API.
+    // Gemini Flash is the recommended model for this feature with the current setup.
+    console.error(`Model ${input.model} (imagen-3.0-generate-002) is not supported for virtual try-on with the direct SDK's generateContent method.`);
+    throw new Error(`The selected Imagen model (${input.model}) is not supported for this virtual try-on task with the current SDK method. Please use Gemini Flash instead.`);
+    // If _callImagen3WithSDK were to be called, it would be:
+    // return _callImagen3WithSDK(input.userImage, input.itemImage, tryOnPromptText);
   } else if (input.model === 'googleai/gemini-2.0-flash') {
-    let modelId = 'googleai/gemini-2.0-flash-preview-image-generation';
+    // For Genkit with googleAI plugin, the model identifier might need the -exp or -preview suffix for image generation.
+    let modelId = 'googleai/gemini-2.0-flash-preview-image-generation'; 
     // Genkit's ai.generate with googleAI plugin handles HTTP URLs in media parts.
     let generationParams: any = {
       model: modelId,
@@ -183,7 +191,7 @@ export async function generateAiTryOn(input: GenerateAiTryOnInput): Promise<Gene
         { text: tryOnPromptText }
       ],
       config: {
-        responseModalities: ['TEXT', 'IMAGE'],
+        responseModalities: ['TEXT', 'IMAGE'], // Required for Gemini image generation via ai.generate
       },
     };
     console.log(`Attempting AI try-on with Genkit (googleAI plugin). Model: ${modelId}`);
@@ -200,12 +208,16 @@ export async function generateAiTryOn(input: GenerateAiTryOnInput): Promise<Gene
       throw new Error(`Failed to generate image with ${modelId}: ${errorMessage}`);
     }
   } else {
+    // This case should not be reached if input validation is correct,
+    // but serves as a fallback.
     console.error(`Unknown model selected: ${input.model}. This model is not configured for generation.`);
     throw new Error(`The selected AI model (${input.model}) is not supported for try-on generation.`);
   }
 }
 
-
+// This Genkit flow definition wraps the main generateAiTryOn logic.
+// It's kept for potential future use if Imagen support via Genkit/VertexAI becomes viable
+// or if all models are routed through a unified Genkit flow structure.
 const generateAiTryOnFlowDefinition = ai.defineFlow(
   {
     name: 'generateAiTryOnFlowDefinition', 
@@ -213,17 +225,21 @@ const generateAiTryOnFlowDefinition = ai.defineFlow(
     outputSchema: GenerateAiTryOnOutputSchema,
   },
   async (input: GenerateAiTryOnInput): Promise<GenerateAiTryOnOutput> => {
+    // The actual generation logic is now in the exported generateAiTryOn function,
+    // which handles model dispatching (Genkit for Gemini, direct SDK attempt for Imagen).
     return generateAiTryOn(input);
   }
 );
 
+// This prompt definition is primarily for Genkit's understanding and potential use
+// if all models were to use a unified ai.definePrompt -> ai.generate structure.
+// Currently, only the Gemini path uses a Genkit-centric ai.generate call directly.
 const generateAiTryOnPromptDefinition = ai.definePrompt({
   name: 'generateAiTryOnPromptDefinition',
   input: {schema: GenerateAiTryOnInputSchema},
-  output: {schema: GenerateAiTryOnOutputSchema}, 
+  output: {schema: GenerateAiTryOnOutputSchema}, // Assuming output is an image data URI
+  // The actual prompt text for ai.generate is constructed dynamically in generateAiTryOn
+  // for Gemini, and the tryOnPromptText constant is used for both paths.
+  // This Handlebars prompt is more of a template placeholder.
   prompt: `User Image: {{media url=userImage}}, Item Image: {{media url=itemImage}}. Instructions: ${tryOnPromptText}`,
 });
-
-    
-
-    
