@@ -1,3 +1,5 @@
+"use client";
+
 import { GenderSelector } from '@/components/GenderSelector';
 import { Sparkles } from 'lucide-react';
 
