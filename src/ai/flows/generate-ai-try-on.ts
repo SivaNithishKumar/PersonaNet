@@ -1,3 +1,4 @@
+
 // The use server directive must come at the top of the file.
 'use server';
 
@@ -23,7 +24,7 @@ const GenerateAiTryOnInputSchema = z.object({
     .describe(
       'The item image as a data URI that must include a MIME type and use Base64 encoding. Expected format: data:<mimetype>;base64,<encoded_data>.'
     ),
-  model: z.enum(['googleai/gemini-2.0-flash', 'imagen3', 'imagen4']).describe('The AI model to use for generating the try-on image.'),
+  model: z.enum(['googleai/gemini-2.0-flash', 'imagen3', 'imagen4']).describe('The AI model to use for generating the try-on image. Note: Currently, only googleai/gemini-2.0-flash-exp is used internally for image generation regardless of this selection.'),
 });
 
 export type GenerateAiTryOnInput = z.infer<typeof GenerateAiTryOnInputSchema>;
@@ -40,6 +41,8 @@ export async function generateAiTryOn(input: GenerateAiTryOnInput): Promise<Gene
   return generateAiTryOnFlow(input);
 }
 
+// Note: The 'generateAiTryOnPrompt' (ai.definePrompt) is defined but not currently used by the generateAiTryOnFlow.
+// The flow uses a direct ai.generate() call for multi-modal image generation.
 const generateAiTryOnPrompt = ai.definePrompt({
   name: 'generateAiTryOnPrompt',
   input: {schema: GenerateAiTryOnInputSchema},
@@ -57,21 +60,33 @@ const generateAiTryOnFlow = ai.defineFlow(
     outputSchema: GenerateAiTryOnOutputSchema,
   },
   async input => {
+    // IMPORTANT: Per Genkit guidelines, ONLY the 'googleai/gemini-2.0-flash-exp' model
+    // is currently able to generate images. We will use this model regardless of input.model.
+    const imageGenerationModel = 'googleai/gemini-2.0-flash-exp';
+
     const {media} = await ai.generate({
-      // IMPORTANT: ONLY the googleai/gemini-2.0-flash-exp model is able to generate images. You MUST use exactly this model to generate images.
-      model: 'googleai/gemini-2.0-flash-exp',
-
+      model: imageGenerationModel,
       prompt: [
-        {media: {url: input.userImage}},
-        {text: 'generate an image of this character wearing the following item:'},
-        {media: {url: input.itemImage}},
+        {media: {url: input.userImage}}, // User image first
+        {media: {url: input.itemImage}}, // Item image second
+        {text: "Create a new photorealistic image. This new image must clearly show the person from the first image (User Image) wearing the clothing item from the second image (Item Image). It is crucial to preserve the person's original appearance, face, and pose from the User Image as accurately as possible. The clothing item from the Item Image should be realistically adapted, resized, and fitted onto the person. The final output must be a single, new, combined image. Do not simply return or slightly alter one of the original input images. Generate a high-quality try-on image."},
       ],
-
       config: {
-        responseModalities: ['TEXT', 'IMAGE'], // MUST provide both TEXT and IMAGE, IMAGE only won't work
+        responseModalities: ['TEXT', 'IMAGE'], // MUST provide both TEXT and IMAGE
       },
     });
 
-    return {generatedImage: media.url!};
+    if (!media || !media.url) {
+      // This case can happen if the model decides to only return text or if generation fails.
+      console.error('AI model did not return an image. Response media:', media);
+      // Attempt to get text if available for more debug info
+      // const response = await ai.generate(...); // This would be a re-run
+      // const textContent = response.text; // Or some way to get the text from the original call
+      // throw new Error(`AI model did not return an image. Text response: ${textContent || 'No text content'}`);
+      throw new Error('AI model did not return an image. Please try again or adjust the input images.');
+    }
+
+    return {generatedImage: media.url};
   }
 );
+
