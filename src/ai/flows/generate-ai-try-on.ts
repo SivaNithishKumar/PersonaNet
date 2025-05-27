@@ -1,3 +1,4 @@
+
 // The use server directive must come at the top of the file.
 'use server';
 
@@ -38,7 +39,7 @@ const GenerateAiTryOnInputSchema = z.object({
   itemImage: z
     .string()
     .describe(
-      'The item image as a data URI that must include a MIME type and use Base64 encoding. Expected format: data:<mimetype>;base64,<encoded_data>.'
+      'The item image as a data URI or an HTTP/S URL. If an HTTP/S URL is provided for Imagen 3/4 SDK calls, it will be fetched and converted. Genkit handles HTTP/S URLs for Gemini calls. Expected format for data URI: data:<mimetype>;base64,<encoded_data>.'
     ),
   model: z.enum(['googleai/gemini-2.0-flash', 'imagen3', 'imagen4']).describe('The AI model to use for generating the try-on image. "googleai/gemini-2.0-flash" uses Genkit with Gemini Flash. "imagen3" uses the @google/generative-ai SDK directly with imagen-3.0-generate-002. "imagen4" currently falls back to Imagen 3 logic.'),
 });
@@ -57,7 +58,7 @@ export type GenerateAiTryOnOutput = z.infer<typeof GenerateAiTryOnOutputSchema>;
 function getImageDetailsFromDataURI(dataUri: string): { mimeType: string; data: string } {
   const match = dataUri.match(/^data:(image\/\w+);base64,(.*)$/);
   if (!match) {
-    console.error("Invalid image data URI format:", dataUri.substring(0, 100) + "...");
+    console.error("Invalid image data URI format (first 100 chars):", dataUri.substring(0, 100));
     throw new Error('Invalid image data URI. Expected format: data:<mimetype>;base64,<encoded_data>');
   }
   return { mimeType: match[1], data: match[2] };
@@ -77,18 +78,45 @@ async function _callImagen3WithSDK(
 
   try {
     const userImageDetails = getImageDetailsFromDataURI(userImageUri);
-    const itemImageDetails = getImageDetailsFromDataURI(itemImageUri);
+    let finalItemImageDetails: { mimeType: string; data: string };
+
+    if (itemImageUri.startsWith('data:')) {
+      finalItemImageDetails = getImageDetailsFromDataURI(itemImageUri);
+    } else if (itemImageUri.startsWith('http')) {
+      try {
+        console.log(`Fetching item image from URL: ${itemImageUri}`);
+        const response = await fetch(itemImageUri);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch item image from ${itemImageUri}. Status: ${response.status}`);
+        }
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.startsWith('image/')) {
+          throw new Error(`Invalid content type for item image: ${contentType}. Expected an image.`);
+        }
+        const imageBuffer = await response.arrayBuffer();
+        const base64Data = Buffer.from(imageBuffer).toString('base64');
+        finalItemImageDetails = { mimeType: contentType, data: base64Data };
+        console.log(`Successfully fetched and converted item image. MimeType: ${finalItemImageDetails.mimeType}, Data length: ${finalItemImageDetails.data.length}`);
+      } catch (error) {
+        console.error('Error fetching or converting HTTP item image:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Could not process item image URL.';
+        throw new Error(`Failed to process item image from URL: ${errorMessage}`);
+      }
+    } else {
+      console.error("Item image URI is not a valid data URI or HTTP/S URL (first 100 chars):", itemImageUri.substring(0,100));
+      throw new Error('Invalid item image URI format. Expected a data URI or an HTTP/S URL for SDK call.');
+    }
 
     const parts: Part[] = [
       { inlineData: { mimeType: userImageDetails.mimeType, data: userImageDetails.data } },
-      { inlineData: { mimeType: itemImageDetails.mimeType, data: itemImageDetails.data } },
+      { inlineData: { mimeType: finalItemImageDetails.mimeType, data: finalItemImageDetails.data } },
       { text: promptText },
     ];
     
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
-      model: "imagen-3.0-generate-002", // Using the specific model name for Imagen 3
-       safetySettings: [ // Default safety settings, adjust as needed
+      model: "imagen-3.0-generate-002",
+       safetySettings: [ 
         { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
         { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
         { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
@@ -100,15 +128,6 @@ async function _callImagen3WithSDK(
     
     const result = await model.generateContent({
       contents: [{ role: "user", parts }],
-      generationConfig: {
-        // For Imagen, we expect an image. If the API supports `responseMimeType` or specific
-        // modalities for image output with `generateContent`, they could be set here.
-        // Based on typical Imagen usage, it directly outputs image bytes.
-        // The example snippet for Gemini used responseModalities, but Imagen might differ.
-        // Let's assume the model will return an image part if successful with this input.
-        // No specific generationConfig for image output like responseMimeType is used here,
-        // relying on the model's default behavior for image generation tasks.
-      }
     });
 
     const response = result.response;
@@ -147,11 +166,12 @@ export async function generateAiTryOn(input: GenerateAiTryOnInput): Promise<Gene
     return _callImagen3WithSDK(input.userImage, input.itemImage, tryOnPromptText);
   } else if (input.model === 'googleai/gemini-2.0-flash') {
     let modelId = 'googleai/gemini-2.0-flash-preview-image-generation';
+    // Genkit's ai.generate with googleAI plugin handles HTTP URLs in media parts.
     let generationParams: any = {
       model: modelId,
       prompt: [
         { media: { url: input.userImage } },
-        { media: { url: input.itemImage } },
+        { media: { url: input.itemImage } }, // Genkit handles if this is HTTP
         { text: tryOnPromptText }
       ],
       config: {
@@ -177,19 +197,14 @@ export async function generateAiTryOn(input: GenerateAiTryOnInput): Promise<Gene
   }
 }
 
-// Note: The ai.defineFlow and ai.definePrompt are not strictly necessary if generateAiTryOn is called directly
-// and not as a registered Genkit flow. However, keeping them might be useful for future Genkit tooling/dev experience.
-// For this direct SDK integration path, generateAiTryOn itself acts as the primary exported function.
 
 const generateAiTryOnFlowDefinition = ai.defineFlow(
   {
-    name: 'generateAiTryOnFlowDefinition', // Renamed to avoid conflict if not directly used
+    name: 'generateAiTryOnFlowDefinition', 
     inputSchema: GenerateAiTryOnInputSchema,
     outputSchema: GenerateAiTryOnOutputSchema,
   },
   async (input: GenerateAiTryOnInput): Promise<GenerateAiTryOnOutput> => {
-    // This definition of flow now acts as a wrapper if we were to call it via Genkit's flow server,
-    // but the primary logic is in the exported generateAiTryOn function.
     return generateAiTryOn(input);
   }
 );
@@ -197,7 +212,8 @@ const generateAiTryOnFlowDefinition = ai.defineFlow(
 const generateAiTryOnPromptDefinition = ai.definePrompt({
   name: 'generateAiTryOnPromptDefinition',
   input: {schema: GenerateAiTryOnInputSchema},
-  // Output schema for the prompt is not directly used when calling SDK, but good for documentation
   output: {schema: GenerateAiTryOnOutputSchema}, 
   prompt: `User Image: {{media url=userImage}}, Item Image: {{media url=itemImage}}. Instructions: ${tryOnPromptText}`,
 });
+
+    
