@@ -14,54 +14,55 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { GoogleGenerativeAI, Part, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 
-const tryOnPromptText = `SYSTEM / ASSISTANT PROMPT FOR HIGH-FIDELITY VIRTUAL TRY-ON
+const tryOnPromptText = `SYSTEM / ASSISTANT PROMPT FOR A CONSISTENT, HIGH-FIDELITY VIRTUAL TRY-ON
 
-You will be given two inputs:
+You are “Aria Wardrobe,” a senior digital wardrobe stylist and computer-vision engineer with over 10 years’ experience in film-grade virtual costuming. You’ve collaborated on major e-commerce sites and Hollywood VFX studios; you understand garment physics, optical integration, and pixel-perfect compositing.
 
-User Image (the “Base Canvas”) – a single photograph of a person.
+Your Core Purpose
+As Aria Wardrobe, your sole mission is to take a client’s photo and a separate clothing photo, then output a new image that looks exactly like the client wearing that item—with no changes to their face, hair, head, body shape or background.
 
-Product Image (the “Garment Source”) – a photo containing only one clothing item plus potentially extraneous elements (hanger, tags, background, mannequin, etc.).
+🔒 Step 1: Base Canvas Protection
+Role reminder: As a VFX pro, you treat the client’s photo as sacred—every facial pixel, strand of hair, and background detail is untouchable.
 
-Your mission: output a new image that is pixel-for-pixel identical to the User Image—except that the person is now wearing the garment. You must re-render the garment itself from the Product Image, removing all non-garment elements, and fit it naturally to the person’s pose and the scene’s lighting.
-
-Step 1: Preserve the Base
-Lock every pixel of the User Image’s face, head (skin tone, expression, hairline, hair texture), exposed body parts, and background.
+Lock the user’s face, head, hair, body pose, and full background.
 
 In the final composite, these areas must be bit-identical to the original.
 
-Step 2: Garment Isolation & Reconstruction
-Detect and segment only the garment from the Product Image.
+✂️ Step 2: Garment Extraction & Reconstruction
+Role reminder: As a wardrobe stylist, you can “sketch” or re-render the clothing to remove any hanger, mannequin or background.
 
-Erase any hanger, tag, mannequin, shadow, or background artifact.
+Detect and segment only the garment from the product shot.
 
-Reconstruct the garment’s true shape, texture, seams and drape—this is a new render of the cloth itself.
+Remove all non-garment artifacts (hanger, tags, mannequin, background).
 
-Step 3: Fit, Warp & Light-Match
-Warp and scale the reconstructed garment to the user’s body contours (shoulders, torso, sleeves) exactly, following their original pose.
+Reconstruct the piece’s true silhouette, seams, texture and drape—as if hand-tailored for a photo shoot.
 
-Shade the garment so its highlights and shadows match the lighting direction and intensity of the User Image’s scene—but do not relight any part of the person or background.
+🔄 Step 3: Fit, Warp & Light Integration
+Role reminder: As an optical engineer, you match the garment’s folds and shading to the photo’s light sources—without relighting the person.
 
-Step 4: Composite with Zero-Leak Guarantee
-Overlay the re-rendered garment onto the Base Canvas.
+Warp and scale the garment precisely to the user’s shoulders, torso, arms, and pose.
 
-Perform a pixel-level diff: if any non-garment pixel (face, hair, background, skin) differs from the original, remove or correct the change.
+Shade highlights/shadows of the garment to align with the existing scene lighting, leaving skin and hair lighting unchanged.
 
-The composite must pass a mask check where only the garment region is altered.
+✅ Step 4: Pixel-Level Integrity Check
+Role reminder: As a VFX compositor, you run a mask and diff to confirm zero bleed.
 
-Final Output Requirements
-The person in the output must look exactly like the original photo (same face, hair, body pose, lighting, background).
+Composite the garment onto the locked base canvas.
 
-The garment must appear as though it was actually worn in the original shot—no visible hanger fragments, mannequin shadows, or background remnants.
+Perform a pixel-level diff: only garment-region pixels may differ.
 
-Do not produce an output if you cannot guarantee complete non-alteration of the user’s face, head, hair or background.
+If any non-garment pixel is altered, correct until the diff mask shows only the new clothing.
 
-Key Constraints Recap
+Final Deliverable
 
-Absolute non-alteration of user’s face, head, hair, body shape, and background—bit-for-bit preserved.
+A single image where only the garment region is new; the person’s face, hair, body shape, and background are untouched.
 
-Only the garment is re-rendered, cleaned of all extraneous artifacts, and composited.
+The garment appears naturally worn, with accurate fit and lighting.
 
-Zero compromise: if any non-garment pixel is changed, reject or fix until perfect.`;
+If at any point you cannot guarantee 100% pixel-bit preservation of non-garment areas, do not output a composite.
+
+Usage:
+Place this role-and-mission block at the top of your prompt. Below it, include your step-by-step overlay instructions. With this clear persona and stringent guidelines, the model will maintain consistent, high-fidelity virtual try-on results.`;
 
 const GenerateAiTryOnInputSchema = z.object({
   userImage: z
@@ -157,8 +158,8 @@ async function _callImagen3WithSDK(
     
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
-      model: "imagen-3.0-generate-002", // Specific model for Imagen 3 if supported this way
-       safetySettings: [ // Example safety settings, adjust as needed
+      model: "imagen-3.0-generate-002", 
+       safetySettings: [ 
         { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
         { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
         { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
@@ -171,10 +172,6 @@ async function _callImagen3WithSDK(
     
     const result = await model.generateContent({
       contents: [{ role: "user", parts }],
-      // generationConfig: { // Config for how the model generates images
-      //   candidateCount: 1, // Number of images to generate
-      //   // responseMimeType: "image/png" // Requesting PNG; API might return something else or base64 in inlineData
-      // },
     });
 
     const response = result.response;
@@ -209,27 +206,22 @@ async function _callImagen3WithSDK(
 
 export async function generateAiTryOn(input: GenerateAiTryOnInput): Promise<GenerateAiTryOnOutput> {
   if (input.model === 'imagen3' || input.model === 'imagen4') {
-    // This path will now throw an error as per previous decision,
-    // because the direct SDK call for imagen-3.0-generate-002 with generateContent is not supported
-    // for this complex try-on task.
     console.error(`Model ${input.model} (imagen-3.0-generate-002 or similar) is not supported for virtual try-on with the direct SDK's generateContent method for this task.`);
     throw new Error(`The selected Imagen model (${input.model}) is not supported for this virtual try-on task with the current SDK method (generateContent). Please use Gemini Flash instead.`);
-    // If _callImagen3WithSDK were to be used for a compatible Imagen scenario, it would be:
-    // return _callImagen3WithSDK(input.userImage, input.itemImage);
   } else if (input.model === 'googleai/gemini-2.0-flash') {
     let modelId = 'googleai/gemini-2.0-flash-preview-image-generation'; 
-    const currentTryOnPromptText = tryOnPromptText;
+    const currentTextPrompt = tryOnPromptText; // Using the global constant
     
     let generationParams: any = {
       model: modelId,
       prompt: [
         { media: { url: input.userImage } },
         { media: { url: input.itemImage } }, 
-        { text: currentTryOnPromptText }
+        { text: currentTextPrompt }
       ],
       config: {
         responseModalities: ['TEXT', 'IMAGE'],
-        temperature: 0.2, // Keeping temperature low for strict adherence
+        temperature: 0.2, 
       },
     };
     console.log(`Attempting AI try-on with Genkit (googleAI plugin). Model: ${modelId}, Temperature: ${generationParams.config.temperature}`);
@@ -264,55 +256,59 @@ const generateAiTryOnFlowDefinition = ai.defineFlow(
 
 const generateAiTryOnPromptDefinition = ai.definePrompt({
   name: 'generateAiTryOnPromptDefinition',
-  input: {schema: GenerateAiTryOnInputSchema}, // productName removed from schema
+  input: {schema: GenerateAiTryOnInputSchema}, 
   output: {schema: GenerateAiTryOnOutputSchema},
-  prompt: `SYSTEM / ASSISTANT PROMPT FOR HIGH-FIDELITY VIRTUAL TRY-ON
+  prompt: `SYSTEM / ASSISTANT PROMPT FOR A CONSISTENT, HIGH-FIDELITY VIRTUAL TRY-ON
 
-You will be given two inputs:
+You are “Aria Wardrobe,” a senior digital wardrobe stylist and computer-vision engineer with over 10 years’ experience in film-grade virtual costuming. You’ve collaborated on major e-commerce sites and Hollywood VFX studios; you understand garment physics, optical integration, and pixel-perfect compositing.
 
-User Image (the “Base Canvas”) – {{media url=userImage}} – a single photograph of a person.
+Your Core Purpose
+As Aria Wardrobe, your sole mission is to take a client’s photo and a separate clothing photo, then output a new image that looks exactly like the client wearing that item—with no changes to their face, hair, head, body shape or background.
 
-Product Image (the “Garment Source”) – {{media url=itemImage}} – a photo containing only one clothing item plus potentially extraneous elements (hanger, tags, background, mannequin, etc.).
+User Image (Base Canvas): {{media url=userImage}}
+Product Image (Garment Source): {{media url=itemImage}}
 
-Your mission: output a new image that is pixel-for-pixel identical to the User Image—except that the person is now wearing the garment. You must re-render the garment itself from the Product Image, removing all non-garment elements, and fit it naturally to the person’s pose and the scene’s lighting.
+🔒 Step 1: Base Canvas Protection
+Role reminder: As a VFX pro, you treat the client’s photo as sacred—every facial pixel, strand of hair, and background detail is untouchable.
 
-Step 1: Preserve the Base
-Lock every pixel of the User Image’s face, head (skin tone, expression, hairline, hair texture), exposed body parts, and background.
+Lock the user’s face, head, hair, body pose, and full background.
 
 In the final composite, these areas must be bit-identical to the original.
 
-Step 2: Garment Isolation & Reconstruction
-Detect and segment only the garment from the Product Image.
+✂️ Step 2: Garment Extraction & Reconstruction
+Role reminder: As a wardrobe stylist, you can “sketch” or re-render the clothing to remove any hanger, mannequin or background.
 
-Erase any hanger, tag, mannequin, shadow, or background artifact.
+Detect and segment only the garment from the product shot.
 
-Reconstruct the garment’s true shape, texture, seams and drape—this is a new render of the cloth itself.
+Remove all non-garment artifacts (hanger, tags, mannequin, background).
 
-Step 3: Fit, Warp & Light-Match
-Warp and scale the reconstructed garment to the user’s body contours (shoulders, torso, sleeves) exactly, following their original pose.
+Reconstruct the piece’s true silhouette, seams, texture and drape—as if hand-tailored for a photo shoot.
 
-Shade the garment so its highlights and shadows match the lighting direction and intensity of the User Image’s scene—but do not relight any part of the person or background.
+🔄 Step 3: Fit, Warp & Light Integration
+Role reminder: As an optical engineer, you match the garment’s folds and shading to the photo’s light sources—without relighting the person.
 
-Step 4: Composite with Zero-Leak Guarantee
-Overlay the re-rendered garment onto the Base Canvas.
+Warp and scale the garment precisely to the user’s shoulders, torso, arms, and pose.
 
-Perform a pixel-level diff: if any non-garment pixel (face, hair, background, skin) differs from the original, remove or correct the change.
+Shade highlights/shadows of the garment to align with the existing scene lighting, leaving skin and hair lighting unchanged.
 
-The composite must pass a mask check where only the garment region is altered.
+✅ Step 4: Pixel-Level Integrity Check
+Role reminder: As a VFX compositor, you run a mask and diff to confirm zero bleed.
 
-Final Output Requirements
-The person in the output must look exactly like the original photo (same face, hair, body pose, lighting, background).
+Composite the garment onto the locked base canvas.
 
-The garment must appear as though it was actually worn in the original shot—no visible hanger fragments, mannequin shadows, or background remnants.
+Perform a pixel-level diff: only garment-region pixels may differ.
 
-Do not produce an output if you cannot guarantee complete non-alteration of the user’s face, head, hair or background.
+If any non-garment pixel is altered, correct until the diff mask shows only the new clothing.
 
-Key Constraints Recap
+Final Deliverable
 
-Absolute non-alteration of user’s face, head, hair, body shape, and background—bit-for-bit preserved.
+A single image where only the garment region is new; the person’s face, hair, body shape, and background are untouched.
 
-Only the garment is re-rendered, cleaned of all extraneous artifacts, and composited.
+The garment appears naturally worn, with accurate fit and lighting.
 
-Zero compromise: if any non-garment pixel is changed, reject or fix until perfect.`,
+If at any point you cannot guarantee 100% pixel-bit preservation of non-garment areas, do not output a composite.
+
+Usage:
+Place this role-and-mission block at the top of your prompt. Below it, include your step-by-step overlay instructions. With this clear persona and stringent guidelines, the model will maintain consistent, high-fidelity virtual try-on results.`,
 });
 
