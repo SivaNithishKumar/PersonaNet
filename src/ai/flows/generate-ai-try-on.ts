@@ -14,14 +14,13 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { GoogleGenerativeAI, Part, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 
-// Placeholder __PRODUCT_NAME__ will be replaced dynamically for active calls.
 const tryOnPromptText = `You are a precision virtual try-on assistant. You will receive:
 
 User Image (Base Canvas) – a photo of a person.
 
-Product Image (Garment Source) – an image showing a clothing item, which is __PRODUCT_NAME__.
+Product Image (Garment Source) – an isolated clothing item.
 
-Your job: produce a single output image in which the person from the User Image is wearing the garment (__PRODUCT_NAME__) from the Product Image—without altering a single pixel of their face, head, hair, body shape or background.
+Your job: produce a single output image in which the person from the User Image is wearing the garment from the Product Image—without altering a single pixel of their face, head, hair, body shape or background.
 
 1. Lock Down the Base Image
 Treat the User Image as sacred: every pixel of the face, head (including facial expression, skin tone, hair color, hairstyle), body pose, and background must remain pixel-for-pixel identical in the final.
@@ -29,19 +28,19 @@ Treat the User Image as sacred: every pixel of the face, head (including facial 
 Under no circumstances change or repaint any feature of the user’s face, hair, head or background.
 
 2. Garment Extraction
-From the Product Image, isolate only the clothing item (__PRODUCT_NAME__).
+From the Product Image, isolate only the clothing item.
 
-Discard any model, mannequin, hanger or background—focus solely on the fabric, seams, silhouette and natural drape of the garment (__PRODUCT_NAME__).
+Discard any model, mannequin, hanger or background—focus solely on the fabric, seams, silhouette and natural drape of the garment.
 
 3. Fit and Overlay
-Accurately map and warp the garment (__PRODUCT_NAME__) onto the user’s torso (or relevant body area) so it conforms perfectly to their existing pose and contours.
+Accurately map and warp the garment onto the user’s torso (or relevant body area) so it conforms perfectly to their existing pose and contours.
 
-Shadows and folds of the garment (__PRODUCT_NAME__) should respond realistically to the User Image’s lighting—but do not alter lighting on any exposed skin, face or hair.
+Shadows and folds of the garment should respond realistically to the User Image’s lighting—but do not alter lighting on any exposed skin, face or hair.
 
 4. Final Integrity Check
 After compositing, compare the input and output on a pixel level over the face, head, hair, and background. They must be identical.
 
-The only difference between input and output should be the presence of the new garment (__PRODUCT_NAME__).
+The only difference between input and output should be the presence of the new garment.
 
 If any reflection, color bleed, or edge artifact touches the face or background, adjust so that no non-garment pixel is changed.
 
@@ -49,7 +48,7 @@ Important:
 
 Do not reconstruct or “re-render” the person—you are only performing a precise overlay.
 
-The final output must look as though the original photo was taken with the garment (__PRODUCT_NAME__) on, using the exact same facial features, lighting on the face, hair texture, and background.
+The final output must look as though the original photo was taken with the garment on, using the exact same facial features, lighting on the face, hair texture, and background.
 
 If you cannot guarantee 100% pixel-identical preservation of the user’s face, head, hair, and background, do not produce an output.`;
 
@@ -65,7 +64,6 @@ const GenerateAiTryOnInputSchema = z.object({
       'The item image as a data URI or an HTTP/S URL. If an HTTP/S URL is provided for SDK calls, it will be fetched and converted. Genkit handles HTTP/S URLs for Gemini calls. Expected format for data URI: data:<mimetype>;base64,<encoded_data>.'
     ),
   model: z.enum(['googleai/gemini-2.0-flash', 'imagen3', 'imagen4']).describe('The AI model to use for generating the try-on image. "googleai/gemini-2.0-flash" uses Genkit with Gemini Flash (specifically googleai/gemini-2.0-flash-preview-image-generation). "imagen3" and "imagen4" are currently configured to throw an error as the direct SDK method for this try-on task is not supported for them.'),
-  productName: z.string().describe('The name of the product item being tried on.'),
 });
 
 export type GenerateAiTryOnInput = z.infer<typeof GenerateAiTryOnInputSchema>;
@@ -96,13 +94,10 @@ function getImageDetailsFromDataURI(dataUri: string): { mimeType: string; data: 
 
 async function _callImagen3WithSDK(
   userImageUri: string,
-  itemImageUri: string,
-  productName: string,
+  itemImageUri: string
 ): Promise<GenerateAiTryOnOutput> {
   console.log("_callImagen3WithSDK invoked. UserImage (first 100):", userImageUri ? userImageUri.substring(0,100) : "EMPTY_OR_NULL");
   console.log("_callImagen3WithSDK invoked. ItemImage (first 100):", itemImageUri ? itemImageUri.substring(0,100) : "EMPTY_OR_NULL");
-  console.log("_callImagen3WithSDK invoked. ProductName:", productName);
-
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -110,8 +105,8 @@ async function _callImagen3WithSDK(
     throw new Error("API key for Imagen is not configured.");
   }
 
-  // This will use the globally defined tryOnPromptText, with productName dynamically inserted.
-  const currentTryOnPromptText = tryOnPromptText.replace(/__PRODUCT_NAME__/g, productName);
+  // This will use the globally defined tryOnPromptText.
+  const currentTryOnPromptText = tryOnPromptText;
 
   try {
     const userImageDetails = getImageDetailsFromDataURI(userImageUri);
@@ -152,7 +147,7 @@ async function _callImagen3WithSDK(
     
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
-      model: "imagen-3.0-generate-002", // This is the target model
+      model: "imagen-3.0-generate-002", 
        safetySettings: [ 
         { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
         { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
@@ -161,12 +156,11 @@ async function _callImagen3WithSDK(
       ],
     });
 
-    console.log(`Attempting AI try-on with @google/generative-ai SDK. Model: imagen-3.0-generate-002, Product: ${productName}`);
+    console.log(`Attempting AI try-on with @google/generative-ai SDK. Model: imagen-3.0-generate-002`);
     console.log("This call is expected to fail with a 404 error as 'imagen-3.0-generate-002' does not support 'generateContent' for this type of multimodal input via the Generative Language API.");
     
     const result = await model.generateContent({
       contents: [{ role: "user", parts }],
-      // generationConfig: { candidateCount: 1 } // Example, might need specific config for image output
     });
 
     const response = result.response;
@@ -202,29 +196,27 @@ async function _callImagen3WithSDK(
 export async function generateAiTryOn(input: GenerateAiTryOnInput): Promise<GenerateAiTryOnOutput> {
   if (input.model === 'imagen3' || input.model === 'imagen4') {
     console.error(`Model ${input.model} (imagen-3.0-generate-002) is not supported for virtual try-on with the direct SDK's generateContent method.`);
-    // This error is thrown because 'generateContent' is generally for Gemini-like models.
-    // Imagen models typically use different endpoints/methods for image generation (e.g., edit, specific generation endpoints).
     throw new Error(`The selected Imagen model (${input.model}) is not supported for this virtual try-on task with the current SDK method (generateContent). Please use Gemini Flash instead.`);
     // If _callImagen3WithSDK were to be called for a compatible Imagen "generateContent" scenario, it would be:
-    // return _callImagen3WithSDK(input.userImage, input.itemImage, input.productName);
+    // return _callImagen3WithSDK(input.userImage, input.itemImage);
   } else if (input.model === 'googleai/gemini-2.0-flash') {
     let modelId = 'googleai/gemini-2.0-flash-preview-image-generation'; 
-    // Dynamically insert product name into the prompt for Gemini Flash
-    const currentTryOnPromptText = tryOnPromptText.replace(/__PRODUCT_NAME__/g, input.productName);
+    // Use the tryOnPromptText directly as productName is removed
+    const currentTryOnPromptText = tryOnPromptText;
     
     let generationParams: any = {
       model: modelId,
       prompt: [
         { media: { url: input.userImage } },
         { media: { url: input.itemImage } }, 
-        { text: currentTryOnPromptText } // Use the updated prompt with product name
+        { text: currentTryOnPromptText }
       ],
       config: {
         responseModalities: ['TEXT', 'IMAGE'],
-        temperature: 0.2, // Lower temperature for stricter adherence to prompt
+        temperature: 0.2,
       },
     };
-    console.log(`Attempting AI try-on with Genkit (googleAI plugin). Model: ${modelId}, Product: ${input.productName}, Temperature: 0.2`);
+    console.log(`Attempting AI try-on with Genkit (googleAI plugin). Model: ${modelId}, Temperature: 0.2`);
     try {
       const {media} = await ai.generate(generationParams);
       if (!media || !media.url) {
@@ -243,8 +235,6 @@ export async function generateAiTryOn(input: GenerateAiTryOnInput): Promise<Gene
   }
 }
 
-// This ai.defineFlow is for Genkit's internal registration and potential use with Genkit tools or UI,
-// but the actual logic is now dispatched within the generateAiTryOn function.
 const generateAiTryOnFlowDefinition = ai.defineFlow(
   {
     name: 'generateAiTryOnFlowDefinition', 
@@ -252,13 +242,10 @@ const generateAiTryOnFlowDefinition = ai.defineFlow(
     outputSchema: GenerateAiTryOnOutputSchema,
   },
   async (input: GenerateAiTryOnInput): Promise<GenerateAiTryOnOutput> => {
-    // The main exported function 'generateAiTryOn' now contains the dispatch logic.
     return generateAiTryOn(input);
   }
 );
 
-// This ai.definePrompt is for potential direct use or as a template reference.
-// The tryOnPromptText constant is what's actually used by the Gemini Flash path in generateAiTryOn.
 const generateAiTryOnPromptDefinition = ai.definePrompt({
   name: 'generateAiTryOnPromptDefinition',
   input: {schema: GenerateAiTryOnInputSchema},
@@ -267,9 +254,9 @@ const generateAiTryOnPromptDefinition = ai.definePrompt({
 
 User Image (Base Canvas) – {{media url=userImage}} – a photo of a person.
 
-Product Image (Garment Source) – {{media url=itemImage}} – an image showing a clothing item, which is {{productName}}.
+Product Image (Garment Source) – {{media url=itemImage}} – an isolated clothing item.
 
-Your job: produce a single output image in which the person from the User Image is wearing the garment ({{productName}}) from the Product Image—without altering a single pixel of their face, head, hair, body shape or background.
+Your job: produce a single output image in which the person from the User Image is wearing the garment from the Product Image—without altering a single pixel of their face, head, hair, body shape or background.
 
 1. Lock Down the Base Image
 Treat the User Image as sacred: every pixel of the face, head (including facial expression, skin tone, hair color, hairstyle), body pose, and background must remain pixel-for-pixel identical in the final.
@@ -277,19 +264,19 @@ Treat the User Image as sacred: every pixel of the face, head (including facial 
 Under no circumstances change or repaint any feature of the user’s face, hair, head or background.
 
 2. Garment Extraction
-From the Product Image, isolate only the clothing item ({{productName}}).
+From the Product Image, isolate only the clothing item.
 
-Discard any model, mannequin, hanger or background—focus solely on the fabric, seams, silhouette and natural drape of the garment ({{productName}}).
+Discard any model, mannequin, hanger or background—focus solely on the fabric, seams, silhouette and natural drape of the garment.
 
 3. Fit and Overlay
-Accurately map and warp the garment ({{productName}}) onto the user’s torso (or relevant body area) so it conforms perfectly to their existing pose and contours.
+Accurately map and warp the garment onto the user’s torso (or relevant body area) so it conforms perfectly to their existing pose and contours.
 
-Shadows and folds of the garment ({{productName}}) should respond realistically to the User Image’s lighting—but do not alter lighting on any exposed skin, face or hair.
+Shadows and folds of the garment should respond realistically to the User Image’s lighting—but do not alter lighting on any exposed skin, face or hair.
 
 4. Final Integrity Check
 After compositing, compare the input and output on a pixel level over the face, head, hair, and background. They must be identical.
 
-The only difference between input and output should be the presence of the new garment ({{productName}}).
+The only difference between input and output should be the presence of the new garment.
 
 If any reflection, color bleed, or edge artifact touches the face or background, adjust so that no non-garment pixel is changed.
 
@@ -297,8 +284,7 @@ Important:
 
 Do not reconstruct or “re-render” the person—you are only performing a precise overlay.
 
-The final output must look as though the original photo was taken with the garment ({{productName}}) on, using the exact same facial features, lighting on the face, hair texture, and background.
+The final output must look as though the original photo was taken with the garment on, using the exact same facial features, lighting on the face, hair texture, and background.
 
 If you cannot guarantee 100% pixel-identical preservation of the user’s face, head, hair, and background, do not produce an output.`,
 });
-

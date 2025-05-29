@@ -100,7 +100,7 @@ export function TryOnClient({ params, product }: TryOnClientProps) {
         userImage: userImage,
         itemImage: itemImageDataUri,
         model: selectedModel,
-        productName: product.name, // Pass product name here
+        // productName: product.name, // Removed productName
       });
       setGeneratedImage(result.generatedImage);
       toast({ title: 'Try-On Complete!', description: 'Check out your new look.', className: 'bg-primary text-primary-foreground' });
@@ -237,4 +237,3 @@ export function TryOnClient({ params, product }: TryOnClientProps) {
     </TooltipProvider>
   );
 }
-
