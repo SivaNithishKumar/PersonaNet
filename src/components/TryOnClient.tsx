@@ -43,9 +43,6 @@ export function TryOnClient({ params, product }: TryOnClientProps) {
 
   const { toast } = useToast();
 
-  // The useEffect for fetching product and setError for "Product not found" is removed.
-  // The 'product' prop is used directly.
-
   const handleImageUpload = (dataUrl: string) => {
     setUserImage(dataUrl);
     setValidationResult(null); // Reset validation on new image
@@ -94,17 +91,16 @@ export function TryOnClient({ params, product }: TryOnClientProps) {
     setError(null); // Clear previous errors
 
     let itemImageDataUri = product.imageUrl;
-    // Note: The logic for handling non-data URI itemImage still exists as a potential issue
-    // as noted in the original code. For now, we proceed assuming it's usable.
     if (!product.imageUrl.startsWith('data:')) {
-        console.warn("Product image URL is not a data URI. AI generation might fail if the model expects a data URI for the item image.");
+        console.warn("Product image URL is not a data URI. AI generation might fail if the model expects a data URI for the item image and doesn't handle HTTP itself.");
     }
 
     try {
       const result = await generateAiTryOn({
         userImage: userImage,
-        itemImage: itemImageDataUri, // Use product.imageUrl directly
+        itemImage: itemImageDataUri,
         model: selectedModel,
+        productName: product.name, // Pass product name here
       });
       setGeneratedImage(result.generatedImage);
       toast({ title: 'Try-On Complete!', description: 'Check out your new look.', className: 'bg-primary text-primary-foreground' });
@@ -118,8 +114,6 @@ export function TryOnClient({ params, product }: TryOnClientProps) {
     }
   };
 
-  // This error display is for other runtime errors (validation, generation),
-  // not for initial product loading.
   if (error && !isLoadingValidation && !isLoadingGeneration) {
     return (
       <div className="container mx-auto px-4 py-8 text-center">
@@ -132,8 +126,6 @@ export function TryOnClient({ params, product }: TryOnClientProps) {
       </div>
     );
   }
-
-  // Product is guaranteed by the server component, so no loading state for product needed here.
   
   const isTryOnDisabled = isLoadingGeneration || !validationResult?.isValid || !userImage;
 
@@ -144,11 +136,9 @@ export function TryOnClient({ params, product }: TryOnClientProps) {
         <CardHeader className="bg-muted/30">
           <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
             <div className="relative w-full md:w-1/4 aspect-[3/4] md:aspect-square rounded-lg overflow-hidden border">
-              {/* Use product prop here */}
               <Image src={product.imageUrl} alt={product.name} layout="fill" objectFit="cover" data-ai-hint={product.hint}/>
             </div>
             <div className="flex-1">
-              {/* Use product prop here */}
               <CardTitle className="text-3xl font-bold">{product.name}</CardTitle>
               <CardDescription className="text-lg text-muted-foreground">{product.description}</CardDescription>
               <p className="text-2xl font-semibold text-primary mt-2">{product.price}</p>
@@ -247,3 +237,4 @@ export function TryOnClient({ params, product }: TryOnClientProps) {
     </TooltipProvider>
   );
 }
+
