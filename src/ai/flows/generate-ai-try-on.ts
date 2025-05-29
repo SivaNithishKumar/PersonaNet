@@ -15,14 +15,20 @@ import {z} from 'genkit';
 import { GoogleGenerativeAI, Part, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 
 // Placeholder __PRODUCT_NAME__ will be replaced dynamically for active calls.
-const tryOnPromptText = `You are an AI virtual try-on assistant.
-Your task is to take a photo of a person (first image) and a photo of a clothing item (second image, showing __PRODUCT_NAME__), and create a NEW image where the person from the first image is wearing the clothing item from the second image.
+const tryOnPromptText = `You are an AI virtual try-on assistant. Before generating the image, follow these thought process steps:
+1.  **Identify the User Image:** This is the first image provided. It is the BASE image. Its core elements – the person's face, head, hair, body pose, and the background – MUST NOT BE ALTERED in any way.
+2.  **Identify the Product Image:** This is the second image provided. It shows the clothing item (__PRODUCT_NAME__).
+3.  **Isolate the Garment:** From the Product Image, you must mentally (or actually) isolate ONLY the clothing item (__PRODUCT_NAME__). Completely disregard any model, mannequin, or background elements present in the Product Image. Your focus is solely on the garment itself.
+4.  **Plan the Overlay:** Determine how the isolated garment will be overlaid onto the User Image. The garment must conform to the User Image's existing pose and body contours realistically.
+5.  **Verify Non-Alteration (CRITICAL):** Before proceeding, double-check that your plan involves ABSOLUTELY NO changes to the User Image's face, head, hair, body shape, or background. The ONLY change permitted is the addition of the garment. Every part of the user's original photo that is NOT covered by the new garment MUST remain pixel-for-pixel identical.
 
-**PRIMARY GOAL: The person in the output image, especially their face, head, hair, pose, and body shape, MUST be IDENTICAL to the person in the first input image. The background of the first image MUST also be IDENTICAL in the output image.** You are ONLY adding the clothing item (__PRODUCT_NAME__). Think of it as a precise "cut and paste" of the garment onto the original, unchanged user photo.
+Your primary task is to take a photo of a person (first image) and a photo of a clothing item (second image, showing __PRODUCT_NAME__), and create a NEW image where the person from the first image is wearing the clothing item from the second image.
+
+**PRIMARY GOAL: The person in the output image, especially their face, head, hair, pose, and body shape, MUST be IDENTICAL to the person in the first input image. The background of the first image MUST also be IDENTICAL in the output image.** You are ONLY adding the clothing item (__PRODUCT_NAME__). Think of it as a precise "cut and paste" or "digital overlay" of the garment onto the original, unchanged user photo.
 
 Details:
 1.  **First Image (User's Photo - The Base Canvas):**
-    *   This is your foundational image. The person's face, head (including all facial features, expression, hair style and color), body pose, and the entire background from this image **MUST be preserved perfectly and remain IDENTICAL** in your final output.
+    *   This is your foundational image. The person's face, head (including ALL facial features, expression, hair style and color), body pose, and the entire background from this image **MUST be preserved perfectly and remain IDENTICAL** in your final output.
     *   Do NOT change skin tone, lighting on the person (unless naturally and subtly affected by the new clothing's shadow), or any non-clothed body parts.
 
 2.  **Second Image (Product Photo of __PRODUCT_NAME__ - The Garment Source):**
@@ -34,10 +40,12 @@ Details:
     *   The garment should fit naturally, following the person's existing pose and body contours from the First Image.
     *   The lighting on the garment should appear consistent with the lighting environment of the First Image.
 
-**ABSOLUTE, NON-NEGOTIABLE RULE: DO NOT ALTER THE USER'S FACE, HEAD, OR HAIR IN ANY WAY, SHAPE, OR FORM.**
+**ABSOLUTE, NON-NEGOTIABLE RULE: DO NOT ALTER THE USER'S FACE, HEAD, OR HAIR IN ANY WAY, SHAPE, OR FORM. THESE FEATURES MUST BE IDENTICAL TO THE FIRST INPUT IMAGE. REPLICATE THEM EXACTLY.**
 If the clothing item would naturally cover part of the hair (e.g., a hoodie), the visible parts of the hair must remain identical to how they appear in the First Image. No part of the face should be altered.
 
-Final Check: The output image must look like the original person from the First Image has simply put on the new __PRODUCT_NAME__, while remaining in their original setting and pose. It should NOT look like a different person, a different pose, a different facial expression, or a different background.`;
+Final Check: The output image must look like the original person from the First Image has simply put on the new __PRODUCT_NAME__, while remaining in their original setting and pose. It should NOT look like a different person, a different pose, a different facial expression, or a different background.
+If you cannot follow these instructions precisely, especially regarding the preservation of the user's face and original image, do not generate an altered image.
+`;
 
 const GenerateAiTryOnInputSchema = z.object({
   userImage: z
@@ -48,7 +56,7 @@ const GenerateAiTryOnInputSchema = z.object({
   itemImage: z
     .string()
     .describe(
-      'The item image as a data URI or an HTTP/S URL. If an HTTP/S URL is provided for Imagen 3/4 SDK calls, it will be fetched and converted. Genkit handles HTTP/S URLs for Gemini calls. Expected format for data URI: data:<mimetype>;base64,<encoded_data>.'
+      'The item image as a data URI or an HTTP/S URL. If an HTTP/S URL is provided for SDK calls, it will be fetched and converted. Genkit handles HTTP/S URLs for Gemini calls. Expected format for data URI: data:<mimetype>;base64,<encoded_data>.'
     ),
   model: z.enum(['googleai/gemini-2.0-flash', 'imagen3', 'imagen4']).describe('The AI model to use for generating the try-on image. "googleai/gemini-2.0-flash" uses Genkit with Gemini Flash. "imagen3" uses the @google/generative-ai SDK directly with imagen-3.0-generate-002. "imagen4" currently falls back to Imagen 3 logic.'),
   productName: z.string().describe('The name of the product item being tried on.'),
@@ -249,17 +257,23 @@ const generateAiTryOnPromptDefinition = ai.definePrompt({
   name: 'generateAiTryOnPromptDefinition',
   input: {schema: GenerateAiTryOnInputSchema},
   output: {schema: GenerateAiTryOnOutputSchema},
-  prompt: `You are an AI virtual try-on assistant.
-Your task is to take a photo of a person (first image) and a photo of a clothing item (second image, showing {{productName}}), and create a NEW image where the person from the first image is wearing the clothing item from the second image.
+  prompt: `You are an AI virtual try-on assistant. Before generating the image, follow these thought process steps:
+1.  **Identify the User Image:** This is the first image provided. It is the BASE image. Its core elements – the person's face, head, hair, body pose, and the background – MUST NOT BE ALTERED in any way.
+2.  **Identify the Product Image:** This is the second image provided. It shows the clothing item ({{productName}}).
+3.  **Isolate the Garment:** From the Product Image, you must mentally (or actually) isolate ONLY the clothing item ({{productName}}). Completely disregard any model, mannequin, or background elements present in the Product Image. Your focus is solely on the garment itself.
+4.  **Plan the Overlay:** Determine how the isolated garment will be overlaid onto the User Image. The garment must conform to the User Image's existing pose and body contours realistically.
+5.  **Verify Non-Alteration (CRITICAL):** Before proceeding, double-check that your plan involves ABSOLUTELY NO changes to the User Image's face, head, hair, body shape, or background. The ONLY change permitted is the addition of the garment. Every part of the user's original photo that is NOT covered by the new garment MUST remain pixel-for-pixel identical.
 
-**PRIMARY GOAL: The person in the output image, especially their face, head, hair, pose, and body shape, MUST be IDENTICAL to the person in the first input image. The background of the first image MUST also be IDENTICAL in the output image.** You are ONLY adding the clothing item ({{productName}}). Think of it as a precise "cut and paste" of the garment onto the original, unchanged user photo.
+Your primary task is to take a photo of a person (first image) and a photo of a clothing item (second image, showing {{productName}}), and create a NEW image where the person from the first image is wearing the clothing item from the second image.
+
+**PRIMARY GOAL: The person in the output image, especially their face, head, hair, pose, and body shape, MUST be IDENTICAL to the person in the first input image. The background of the first image MUST also be IDENTICAL in the output image.** You are ONLY adding the clothing item ({{productName}}). Think of it as a precise "cut and paste" or "digital overlay" of the garment onto the original, unchanged user photo.
 
 User Image (Base Canvas): {{media url=userImage}}
 Product Image (Garment Source, showing {{productName}}): {{media url=itemImage}}
 
 Details:
 1.  **First Image (User's Photo - The Base Canvas):**
-    *   This is your foundational image. The person's face, head (including all facial features, expression, hair style and color), body pose, and the entire background from this image **MUST be preserved perfectly and remain IDENTICAL** in your final output.
+    *   This is your foundational image. The person's face, head (including ALL facial features, expression, hair style and color), body pose, and the entire background from this image **MUST be preserved perfectly and remain IDENTICAL** in your final output.
     *   Do NOT change skin tone, lighting on the person (unless naturally and subtly affected by the new clothing's shadow), or any non-clothed body parts.
 
 2.  **Second Image (Product Photo of {{productName}} - The Garment Source):**
@@ -271,9 +285,10 @@ Details:
     *   The garment should fit naturally, following the person's existing pose and body contours from the First Image.
     *   The lighting on the garment should appear consistent with the lighting environment of the First Image.
 
-**ABSOLUTE, NON-NEGOTIABLE RULE: DO NOT ALTER THE USER'S FACE, HEAD, OR HAIR IN ANY WAY, SHAPE, OR FORM.**
+**ABSOLUTE, NON-NEGOTIABLE RULE: DO NOT ALTER THE USER'S FACE, HEAD, OR HAIR IN ANY WAY, SHAPE, OR FORM. THESE FEATURES MUST BE IDENTICAL TO THE FIRST INPUT IMAGE. REPLICATE THEM EXACTLY.**
 If the clothing item would naturally cover part of the hair (e.g., a hoodie), the visible parts of the hair must remain identical to how they appear in the First Image. No part of the face should be altered.
 
-Final Check: The output image must look like the original person from the First Image has simply put on the new {{productName}}, while remaining in their original setting and pose. It should NOT look like a different person, a different pose, a different facial expression, or a different background.`,
+Final Check: The output image must look like the original person from the First Image has simply put on the new {{productName}}, while remaining in their original setting and pose. It should NOT look like a different person, a different pose, a different facial expression, or a different background.
+If you cannot follow these instructions precisely, especially regarding the preservation of the user's face and original image, do not generate an altered image.`,
 });
 
