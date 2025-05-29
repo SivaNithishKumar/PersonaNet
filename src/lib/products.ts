@@ -12,7 +12,7 @@ export interface Product {
 
 const products: Product[] = [
   // Men's Clothing
-  { id: 'm-cloth-1', name: 'Classic Denim Jacket', gender: 'men', type: 'clothing', imageUrl: 'https://images.unsplash.com/photo-1543076498-1d23572f2f83?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80', description: 'A timeless denim jacket for a rugged look.', price: '$79.99', hint: 'denim jacket' },
+  { id: 'm-cloth-1', name: 'Classic Denim Jacket', gender: 'men', type: 'clothing', imageUrl: 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d34?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80', description: 'A timeless denim jacket for a rugged look.', price: '$79.99', hint: 'denim jacket' },
   { id: 'm-cloth-2', name: 'Tailored Chinos', gender: 'men', type: 'clothing', imageUrl: 'https://images.unsplash.com/photo-1604176354204-926873782855?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80', description: 'Versatile chinos for smart-casual occasions.', price: '$59.99', hint: 'mens pants' },
   { id: 'm-cloth-3', name: 'Graphic Print T-Shirt', gender: 'men', type: 'clothing', imageUrl: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80', description: 'Comfortable cotton t-shirt with a cool graphic.', price: '$29.99', hint: 'mens t-shirt' },
   
