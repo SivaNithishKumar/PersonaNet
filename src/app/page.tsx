@@ -3,7 +3,7 @@
 
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, MoreVertical, Smile, Paperclip, Mic, Send, UserCircle } from 'lucide-react';
+import { ArrowLeft, MoreVertical, Smile, Paperclip, Mic } from 'lucide-react';
 import Image from 'next/image';
 
 export default function WhatsAppMockupPage() {
@@ -20,7 +20,7 @@ export default function WhatsAppMockupPage() {
         <header className="bg-[#005E54] dark:bg-[#202C33] text-white p-3 flex items-center space-x-3">
           <ArrowLeft className="cursor-pointer" />
           <Image 
-            src="https://placehold.co/40x40/78909C/FFFFFF?text=P&font=roboto" 
+            src="https://placehold.co/40x40.png" 
             alt="Pothys Textiles Profile" 
             width={40} 
             height={40} 
@@ -49,6 +49,16 @@ export default function WhatsAppMockupPage() {
               <p className="text-sm text-gray-800 dark:text-gray-200 mb-2">
                 🎉 Vanakkam! Welcome to Pothys! ✨
               </p>
+              <div className="my-3 rounded-md overflow-hidden">
+                <Image 
+                  src="https://placehold.co/600x400.png" 
+                  alt="Pothys Collection Highlight" 
+                  width={600} 
+                  height={400} 
+                  className="object-cover"
+                  data-ai-hint="textiles jewelry"
+                />
+              </div>
               <p className="text-sm text-gray-800 dark:text-gray-200 mb-3">
                 Discover our exquisite new collection of silks and jewelry, perfect for every occasion. Tap below to explore the latest arrivals and find your unique style!
               </p>
