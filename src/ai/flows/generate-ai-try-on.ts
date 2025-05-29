@@ -15,28 +15,29 @@ import {z} from 'genkit';
 import { GoogleGenerativeAI, Part, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 
 // Placeholder __PRODUCT_NAME__ will be replaced dynamically for active calls.
-const tryOnPromptText = `You are an AI assistant performing a virtual try-on.
-The product to be tried on is: **__PRODUCT_NAME__**.
+const tryOnPromptText = `You are an AI virtual try-on assistant.
+Your task is to take a photo of a person (first image) and a photo of a clothing item (second image, showing __PRODUCT_NAME__), and create a NEW image where the person from the first image is wearing the clothing item from the second image.
 
-The first input image is the **user's photo**. Treat this as the absolute base: the person’s face, pose, body, lighting, and background from this image **MUST remain completely unchanged and pixel-perfect where not covered by the new garment.**
+**PRIMARY GOAL: The person in the output image, especially their face, head, hair, pose, and body shape, MUST be IDENTICAL to the person in the first input image. The background of the first image MUST also be IDENTICAL in the output image.** You are ONLY adding the clothing item (__PRODUCT_NAME__). Think of it as a precise "cut and paste" of the garment onto the original, unchanged user photo.
 
-The second input image is the **product photo** (showing __PRODUCT_NAME__). This product photo might show the item on a model or a mannequin. Your task is to **extract *only* the clothing item/garment (__PRODUCT_NAME__)** from this second (product) image. You MUST ignore any person, mannequin, or background elements present in the product photo. Focus solely on the garment itself.
+Details:
+1.  **First Image (User's Photo - The Base Canvas):**
+    *   This is your foundational image. The person's face, head (including all facial features, expression, hair style and color), body pose, and the entire background from this image **MUST be preserved perfectly and remain IDENTICAL** in your final output.
+    *   Do NOT change skin tone, lighting on the person (unless naturally and subtly affected by the new clothing's shadow), or any non-clothed body parts.
 
-Then, realistically overlay this extracted clothing item (__PRODUCT_NAME__) onto the person in the first (user's) image.
+2.  **Second Image (Product Photo of __PRODUCT_NAME__ - The Garment Source):**
+    *   From this image, extract **ONLY** the clothing item (__PRODUCT_NAME__).
+    *   **IGNORE** any model, mannequin, or background elements in this product photo. Your focus is solely on the garment itself.
 
-**CRITICAL RULES FOR FACIAL PRESERVATION - STRICT COMPLIANCE REQUIRED:**
-1.  **DO NOT MODIFY THE USER'S FACE OR HEAD IN ANY WAY, SHAPE, OR FORM.** This is the most important rule.
-2.  The user's facial features (eyes, nose, mouth, ears), expression, head shape, hair (style, color, texture, hairline), skin texture, and eye color **MUST BE IDENTICAL** to the original user's photo.
-3.  There should be **ABSOLUTELY NO REGENERATION, SMOOTHING, ALTERATION, OR STYLISTIC CHANGES** to the user's face or head. It must look like the original person's head seamlessly on the body with the new clothing.
-4.  If the garment partially occludes the hair, the visible parts of the hair must remain unchanged from the original user photo. Ensure hair continuity.
+3.  **Output Image (The Virtual Try-On Result):**
+    *   Realistically and precisely overlay the extracted garment (__PRODUCT_NAME__) onto the person from the First Image.
+    *   The garment should fit naturally, following the person's existing pose and body contours from the First Image.
+    *   The lighting on the garment should appear consistent with the lighting environment of the First Image.
 
-General Rules:
-- Do not change the user's pose, body position, camera angle, or perspective from the original user photo.
-- Do not create or imagine hidden body parts — preserve what is visible in the user's photo, and leave occluded parts untouched or naturally covered by the garment.
-- Accurately wrap the extracted garment (__PRODUCT_NAME__) onto the visible body parts of the person in the user's photo, matching the contours, shape, and folds realistically.
-- Do not alter the background of the user's photo.
-- The final image must look like the person from the user's photo is wearing the new outfit — not like a new person or AI-generated lookalike.
-- Your task is to replace clothing only on the person in the user's photo. Everything else in the user's photo (background, non-clothed body parts, and especially the head/face) must remain pixel-consistent or visually identical to the original.`;
+**ABSOLUTE, NON-NEGOTIABLE RULE: DO NOT ALTER THE USER'S FACE, HEAD, OR HAIR IN ANY WAY, SHAPE, OR FORM.**
+If the clothing item would naturally cover part of the hair (e.g., a hoodie), the visible parts of the hair must remain identical to how they appear in the First Image. No part of the face should be altered.
+
+Final Check: The output image must look like the original person from the First Image has simply put on the new __PRODUCT_NAME__, while remaining in their original setting and pose. It should NOT look like a different person, a different pose, a different facial expression, or a different background.`;
 
 const GenerateAiTryOnInputSchema = z.object({
   userImage: z
@@ -95,6 +96,7 @@ async function _callImagen3WithSDK(
     throw new Error("API key for Imagen is not configured.");
   }
 
+  // This will use the globally defined tryOnPromptText, with productName dynamically inserted.
   const currentTryOnPromptText = tryOnPromptText.replace(/__PRODUCT_NAME__/g, productName);
 
   try {
@@ -136,7 +138,7 @@ async function _callImagen3WithSDK(
     
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
-      model: "imagen-3.0-generate-002",
+      model: "imagen-3.0-generate-002", // This is the target model
        safetySettings: [ 
         { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
         { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
@@ -145,11 +147,12 @@ async function _callImagen3WithSDK(
       ],
     });
 
-    console.log(`Attempting AI try-on with @google/generative-ai SDK. Model: imagen-3.0-generate-002`);
+    console.log(`Attempting AI try-on with @google/generative-ai SDK. Model: imagen-3.0-generate-002, Product: ${productName}`);
     console.log("This call is expected to fail with a 404 error as 'imagen-3.0-generate-002' does not support 'generateContent' for this type of multimodal input via the Generative Language API.");
     
     const result = await model.generateContent({
       contents: [{ role: "user", parts }],
+      // generationConfig: { candidateCount: 1 } // Example, might need specific config for image output
     });
 
     const response = result.response;
@@ -172,7 +175,7 @@ async function _callImagen3WithSDK(
       console.error('Imagen 3 SDK (generateContent) did not return image data. Full response:', JSON.stringify(response, null, 2));
       throw new Error('Imagen 3 SDK (generateContent) did not return image data in the expected format.');
     }
-    return { generatedImage: generatedImageDataUri };
+    return {generatedImage: generatedImageDataUri};
 
   } catch (error) {
     console.error(`Error during Imagen 3 SDK call:`, error);
@@ -185,11 +188,14 @@ async function _callImagen3WithSDK(
 export async function generateAiTryOn(input: GenerateAiTryOnInput): Promise<GenerateAiTryOnOutput> {
   if (input.model === 'imagen3' || input.model === 'imagen4') {
     console.error(`Model ${input.model} (imagen-3.0-generate-002) is not supported for virtual try-on with the direct SDK's generateContent method.`);
-    throw new Error(`The selected Imagen model (${input.model}) is not supported for this virtual try-on task with the current SDK method. Please use Gemini Flash instead.`);
-    // If _callImagen3WithSDK were to be called, it would be:
+    // This error is thrown because 'generateContent' is generally for Gemini-like models.
+    // Imagen models typically use different endpoints/methods for image generation (e.g., edit, specific generation endpoints).
+    throw new Error(`The selected Imagen model (${input.model}) is not supported for this virtual try-on task with the current SDK method (generateContent). Please use Gemini Flash instead.`);
+    // If _callImagen3WithSDK were to be called for a compatible Imagen "generateContent" scenario, it would be:
     // return _callImagen3WithSDK(input.userImage, input.itemImage, input.productName);
   } else if (input.model === 'googleai/gemini-2.0-flash') {
     let modelId = 'googleai/gemini-2.0-flash-preview-image-generation'; 
+    // Dynamically insert product name into the prompt for Gemini Flash
     const currentTryOnPromptText = tryOnPromptText.replace(/__PRODUCT_NAME__/g, input.productName);
     
     let generationParams: any = {
@@ -197,7 +203,7 @@ export async function generateAiTryOn(input: GenerateAiTryOnInput): Promise<Gene
       prompt: [
         { media: { url: input.userImage } },
         { media: { url: input.itemImage } }, 
-        { text: currentTryOnPromptText }
+        { text: currentTryOnPromptText } // Use the updated prompt with product name
       ],
       config: {
         responseModalities: ['TEXT', 'IMAGE'], 
@@ -222,6 +228,8 @@ export async function generateAiTryOn(input: GenerateAiTryOnInput): Promise<Gene
   }
 }
 
+// This ai.defineFlow is for Genkit's internal registration and potential use with Genkit tools or UI,
+// but the actual logic is now dispatched within the generateAiTryOn function.
 const generateAiTryOnFlowDefinition = ai.defineFlow(
   {
     name: 'generateAiTryOnFlowDefinition', 
@@ -229,37 +237,42 @@ const generateAiTryOnFlowDefinition = ai.defineFlow(
     outputSchema: GenerateAiTryOnOutputSchema,
   },
   async (input: GenerateAiTryOnInput): Promise<GenerateAiTryOnOutput> => {
+    // The main exported function 'generateAiTryOn' now contains the dispatch logic.
     return generateAiTryOn(input);
   }
 );
 
+// This ai.definePrompt is for potential direct use or as a template reference.
+// The tryOnPromptText constant is what's actually used by the Gemini Flash path in generateAiTryOn.
 const generateAiTryOnPromptDefinition = ai.definePrompt({
   name: 'generateAiTryOnPromptDefinition',
   input: {schema: GenerateAiTryOnInputSchema},
   output: {schema: GenerateAiTryOnOutputSchema},
-  prompt: `You are an AI assistant performing a virtual try-on.
-The product to be tried on is: **{{productName}}**.
+  prompt: `You are an AI virtual try-on assistant.
+Your task is to take a photo of a person (first image) and a photo of a clothing item (second image, showing {{productName}}), and create a NEW image where the person from the first image is wearing the clothing item from the second image.
 
-The first input image is the **user's photo**. Treat this as the absolute base: the person’s face, pose, body, lighting, and background from this image **MUST remain completely unchanged and pixel-perfect where not covered by the new garment.**
-User Image: {{media url=userImage}}
+**PRIMARY GOAL: The person in the output image, especially their face, head, hair, pose, and body shape, MUST be IDENTICAL to the person in the first input image. The background of the first image MUST also be IDENTICAL in the output image.** You are ONLY adding the clothing item ({{productName}}). Think of it as a precise "cut and paste" of the garment onto the original, unchanged user photo.
 
-The second input image is the **product photo** (showing {{productName}}). This product photo might show the item on a model or a mannequin. Your task is to **extract *only* the clothing item/garment ({{productName}})** from this second (product) image. You MUST ignore any person, mannequin, or background elements present in the product photo. Focus solely on the garment itself.
-Item Image: {{media url=itemImage}}
+User Image (Base Canvas): {{media url=userImage}}
+Product Image (Garment Source, showing {{productName}}): {{media url=itemImage}}
 
-Then, realistically overlay this extracted clothing item ({{productName}}) onto the person in the first (user's) image.
+Details:
+1.  **First Image (User's Photo - The Base Canvas):**
+    *   This is your foundational image. The person's face, head (including all facial features, expression, hair style and color), body pose, and the entire background from this image **MUST be preserved perfectly and remain IDENTICAL** in your final output.
+    *   Do NOT change skin tone, lighting on the person (unless naturally and subtly affected by the new clothing's shadow), or any non-clothed body parts.
 
-**CRITICAL RULES FOR FACIAL PRESERVATION - STRICT COMPLIANCE REQUIRED:**
-1.  **DO NOT MODIFY THE USER'S FACE OR HEAD IN ANY WAY, SHAPE, OR FORM.** This is the most important rule.
-2.  The user's facial features (eyes, nose, mouth, ears), expression, head shape, hair (style, color, texture, hairline), skin texture, and eye color **MUST BE IDENTICAL** to the original user's photo.
-3.  There should be **ABSOLUTELY NO REGENERATION, SMOOTHING, ALTERATION, OR STYLISTIC CHANGES** to the user's face or head. It must look like the original person's head seamlessly on the body with the new clothing.
-4.  If the garment partially occludes the hair, the visible parts of the hair must remain unchanged from the original user photo. Ensure hair continuity.
+2.  **Second Image (Product Photo of {{productName}} - The Garment Source):**
+    *   From this image, extract **ONLY** the clothing item ({{productName}}).
+    *   **IGNORE** any model, mannequin, or background elements in this product photo. Your focus is solely on the garment itself.
 
-General Rules:
-- Do not change the user's pose, body position, camera angle, or perspective from the original user photo.
-- Do not create or imagine hidden body parts — preserve what is visible in the user's photo, and leave occluded parts untouched or naturally covered by the garment.
-- Accurately wrap the extracted garment ({{productName}}) onto the visible body parts of the person in the user's photo, matching the contours, shape, and folds realistically.
-- Do not alter the background of the user's photo.
-- The final image must look like the person from the user's photo is wearing the new outfit — not like a new person or AI-generated lookalike.
-- Your task is to replace clothing only on the person in the user's photo. Everything else in the user's photo (background, non-clothed body parts, and especially the head/face) must remain pixel-consistent or visually identical to the original.`,
+3.  **Output Image (The Virtual Try-On Result):**
+    *   Realistically and precisely overlay the extracted garment ({{productName}}) onto the person from the First Image.
+    *   The garment should fit naturally, following the person's existing pose and body contours from the First Image.
+    *   The lighting on the garment should appear consistent with the lighting environment of the First Image.
+
+**ABSOLUTE, NON-NEGOTIABLE RULE: DO NOT ALTER THE USER'S FACE, HEAD, OR HAIR IN ANY WAY, SHAPE, OR FORM.**
+If the clothing item would naturally cover part of the hair (e.g., a hoodie), the visible parts of the hair must remain identical to how they appear in the First Image. No part of the face should be altered.
+
+Final Check: The output image must look like the original person from the First Image has simply put on the new {{productName}}, while remaining in their original setting and pose. It should NOT look like a different person, a different pose, a different facial expression, or a different background.`,
 });
 
