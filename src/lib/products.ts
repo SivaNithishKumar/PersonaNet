@@ -12,7 +12,7 @@ export interface Product {
 
 const products: Product[] = [
   // Men's Clothing
-  { id: 'm-cloth-1', name: 'Classic Denim Jacket', gender: 'men', type: 'clothing', imageUrl: 'https://images.unsplash.com/photo-1604176354204-926873782855?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80', description: 'A timeless denim jacket for a rugged look.', price: '$79.99', hint: 'denim jacket' },
+  { id: 'm-cloth-1', name: 'Classic Denim Jacket', gender: 'men', type: 'clothing', imageUrl: 'https://images.unsplash.com/photo-1591370874773-6702e8f12fd8?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80', description: 'A timeless denim jacket for a rugged look.', price: '$79.99', hint: 'denim jacket' },
   { id: 'm-cloth-2', name: 'Tailored Chinos', gender: 'men', type: 'clothing', imageUrl: 'https://images.unsplash.com/photo-1584865288642-42078afe6942?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxjaGlub3N8ZW58MHx8fHwxNzQ4NDk3OTg0fDA&ixlib=rb-4.1.0&q=80&w=1080', description: 'Versatile chinos for smart-casual occasions.', price: '$59.99', hint: 'mens pants' },
   { id: 'm-cloth-3', name: 'Graphic Print T-Shirt', gender: 'men', type: 'clothing', imageUrl: 'https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80', description: 'Comfortable cotton t-shirt with a cool graphic.', price: '$29.99', hint: 'mens t-shirt' },
   
@@ -26,11 +26,11 @@ const products: Product[] = [
   { id: 'w-cloth-3', name: 'Silk Blouse', gender: 'women', type: 'clothing', imageUrl: 'https://images.unsplash.com/photo-1623635304894-6917f1999850?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80', description: 'Luxurious silk blouse for a touch of sophistication.', price: '$99.99', hint: 'womens blouse' },
 
   // Women's Jewelry
-  { id: 'w-jewel-1', name: 'Pearl Drop Earrings', gender: 'women', type: 'jewelry', imageUrl: 'https://images.unsplash.com/photo-1615219930690-9913150d1a89?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80', description: 'Classic pearl drop earrings for timeless elegance.', price: '$75.00', hint: 'earrings' },
+  { id: 'w-jewel-1', name: 'Pearl Drop Earrings', gender: 'women', type: 'jewelry', imageUrl: 'https://images.unsplash.com/photo-1588444968368-eb457yler7e1f9?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80', description: 'Classic pearl drop earrings for timeless elegance.', price: '$75.00', hint: 'earrings' },
   { id: 'w-jewel-2', name: 'Gold Pendant Necklace', gender: 'women', type: 'jewelry', imageUrl: 'https://images.unsplash.com/photo-1617038220319-c6aba0bcf3f2?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80', description: 'Delicate gold pendant necklace, perfect for layering.', price: '$150.00', hint: 'necklace' },
 
   // Unisex items
-  { id: 'u-cloth-1', name: 'Basic Hoodie', gender: 'unisex', type: 'clothing', imageUrl: 'https://images.unsplash.com/photo-1509942774463-acf339cf87d5?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80', description: 'Comfortable and versatile basic hoodie.', price: '$49.99', hint: 'hoodie' },
+  { id: 'u-cloth-1', name: 'Basic Hoodie', gender: 'unisex', type: 'clothing', imageUrl: 'https://images.unsplash.com/photo-1620799140408-edc6dcb6d633?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80', description: 'Comfortable and versatile basic white hoodie.', price: '$49.99', hint: 'white hoodie' },
   { id: 'u-jewel-1', name: 'Leather Cord Necklace', gender: 'unisex', type: 'jewelry', imageUrl: 'https://images.unsplash.com/photo-1508909397440-ea1669407c18?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80', description: 'Simple leather cord necklace for a casual style.', price: '$30.00', hint: 'pendant necklace' },
 ];
 
