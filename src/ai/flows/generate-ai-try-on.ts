@@ -206,10 +206,11 @@ export async function generateAiTryOn(input: GenerateAiTryOnInput): Promise<Gene
         { text: currentTryOnPromptText } // Use the updated prompt with product name
       ],
       config: {
-        responseModalities: ['TEXT', 'IMAGE'], 
+        responseModalities: ['TEXT', 'IMAGE'],
+        temperature: 0.2, // Lower temperature for stricter adherence to prompt
       },
     };
-    console.log(`Attempting AI try-on with Genkit (googleAI plugin). Model: ${modelId}, Product: ${input.productName}`);
+    console.log(`Attempting AI try-on with Genkit (googleAI plugin). Model: ${modelId}, Product: ${input.productName}, Temperature: 0.2`);
     try {
       const {media} = await ai.generate(generationParams);
       if (!media || !media.url) {
