@@ -44,7 +44,7 @@ Details:
 If the clothing item would naturally cover part of the hair (e.g., a hoodie), the visible parts of the hair must remain identical to how they appear in the First Image. No part of the face should be altered.
 
 Final Check: The output image must look like the original person from the First Image has simply put on the new __PRODUCT_NAME__, while remaining in their original setting and pose. It should NOT look like a different person, a different pose, a different facial expression, or a different background.
-If you cannot follow these instructions precisely, especially regarding the preservation of the user's face and original image, do not generate an altered image.
+**If you cannot follow these instructions precisely, especially regarding the preservation of the user's face and original image, do not generate an altered image.**
 `;
 
 const GenerateAiTryOnInputSchema = z.object({
@@ -58,7 +58,7 @@ const GenerateAiTryOnInputSchema = z.object({
     .describe(
       'The item image as a data URI or an HTTP/S URL. If an HTTP/S URL is provided for SDK calls, it will be fetched and converted. Genkit handles HTTP/S URLs for Gemini calls. Expected format for data URI: data:<mimetype>;base64,<encoded_data>.'
     ),
-  model: z.enum(['googleai/gemini-2.0-flash', 'imagen3', 'imagen4']).describe('The AI model to use for generating the try-on image. "googleai/gemini-2.0-flash" uses Genkit with Gemini Flash. "imagen3" uses the @google/generative-ai SDK directly with imagen-3.0-generate-002. "imagen4" currently falls back to Imagen 3 logic.'),
+  model: z.enum(['googleai/gemini-2.0-flash', 'imagen3', 'imagen4']).describe('The AI model to use for generating the try-on image. "googleai/gemini-2.0-flash" uses Genkit with Gemini Flash (specifically googleai/gemini-2.0-flash-preview-image-generation). "imagen3" and "imagen4" are currently configured to throw an error as the direct SDK method for this try-on task is not supported for them.'),
   productName: z.string().describe('The name of the product item being tried on.'),
 });
 
@@ -289,6 +289,6 @@ Details:
 If the clothing item would naturally cover part of the hair (e.g., a hoodie), the visible parts of the hair must remain identical to how they appear in the First Image. No part of the face should be altered.
 
 Final Check: The output image must look like the original person from the First Image has simply put on the new {{productName}}, while remaining in their original setting and pose. It should NOT look like a different person, a different pose, a different facial expression, or a different background.
-If you cannot follow these instructions precisely, especially regarding the preservation of the user's face and original image, do not generate an altered image.`,
+**If you cannot follow these instructions precisely, especially regarding the preservation of the user's face and original image, do not generate an altered image.**`,
 });
 
