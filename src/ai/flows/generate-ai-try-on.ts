@@ -14,43 +14,54 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 import { GoogleGenerativeAI, Part, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 
-const tryOnPromptText = `You are a precision virtual try-on assistant. You will receive:
+const tryOnPromptText = `SYSTEM / ASSISTANT PROMPT FOR HIGH-FIDELITY VIRTUAL TRY-ON
 
-User Image (Base Canvas) – a photo of a person.
+You will be given two inputs:
 
-Product Image (Garment Source) – an isolated clothing item.
+User Image (the “Base Canvas”) – a single photograph of a person.
 
-Your job: produce a single output image in which the person from the User Image is wearing the garment from the Product Image—without altering a single pixel of their face, head, hair, body shape or background.
+Product Image (the “Garment Source”) – a photo containing only one clothing item plus potentially extraneous elements (hanger, tags, background, mannequin, etc.).
 
-1. Lock Down the Base Image
-Treat the User Image as sacred: every pixel of the face, head (including facial expression, skin tone, hair color, hairstyle), body pose, and background must remain pixel-for-pixel identical in the final.
+Your mission: output a new image that is pixel-for-pixel identical to the User Image—except that the person is now wearing the garment. You must re-render the garment itself from the Product Image, removing all non-garment elements, and fit it naturally to the person’s pose and the scene’s lighting.
 
-Under no circumstances change or repaint any feature of the user’s face, hair, head or background.
+Step 1: Preserve the Base
+Lock every pixel of the User Image’s face, head (skin tone, expression, hairline, hair texture), exposed body parts, and background.
 
-2. Garment Extraction
-From the Product Image, isolate only the clothing item.
+In the final composite, these areas must be bit-identical to the original.
 
-Discard any model, mannequin, hanger or background—focus solely on the fabric, seams, silhouette and natural drape of the garment.
+Step 2: Garment Isolation & Reconstruction
+Detect and segment only the garment from the Product Image.
 
-3. Fit and Overlay
-Accurately map and warp the garment onto the user’s torso (or relevant body area) so it conforms perfectly to their existing pose and contours.
+Erase any hanger, tag, mannequin, shadow, or background artifact.
 
-Shadows and folds of the garment should respond realistically to the User Image’s lighting—but do not alter lighting on any exposed skin, face or hair.
+Reconstruct the garment’s true shape, texture, seams and drape—this is a new render of the cloth itself.
 
-4. Final Integrity Check
-After compositing, compare the input and output on a pixel level over the face, head, hair, and background. They must be identical.
+Step 3: Fit, Warp & Light-Match
+Warp and scale the reconstructed garment to the user’s body contours (shoulders, torso, sleeves) exactly, following their original pose.
 
-The only difference between input and output should be the presence of the new garment.
+Shade the garment so its highlights and shadows match the lighting direction and intensity of the User Image’s scene—but do not relight any part of the person or background.
 
-If any reflection, color bleed, or edge artifact touches the face or background, adjust so that no non-garment pixel is changed.
+Step 4: Composite with Zero-Leak Guarantee
+Overlay the re-rendered garment onto the Base Canvas.
 
-Important:
+Perform a pixel-level diff: if any non-garment pixel (face, hair, background, skin) differs from the original, remove or correct the change.
 
-Do not reconstruct or “re-render” the person—you are only performing a precise overlay.
+The composite must pass a mask check where only the garment region is altered.
 
-The final output must look as though the original photo was taken with the garment on, using the exact same facial features, lighting on the face, hair texture, and background.
+Final Output Requirements
+The person in the output must look exactly like the original photo (same face, hair, body pose, lighting, background).
 
-If you cannot guarantee 100% pixel-identical preservation of the user’s face, head, hair, and background, do not produce an output.`;
+The garment must appear as though it was actually worn in the original shot—no visible hanger fragments, mannequin shadows, or background remnants.
+
+Do not produce an output if you cannot guarantee complete non-alteration of the user’s face, head, hair or background.
+
+Key Constraints Recap
+
+Absolute non-alteration of user’s face, head, hair, body shape, and background—bit-for-bit preserved.
+
+Only the garment is re-rendered, cleaned of all extraneous artifacts, and composited.
+
+Zero compromise: if any non-garment pixel is changed, reject or fix until perfect.`;
 
 const GenerateAiTryOnInputSchema = z.object({
   userImage: z
@@ -61,7 +72,7 @@ const GenerateAiTryOnInputSchema = z.object({
   itemImage: z
     .string()
     .describe(
-      'The item image as a data URI or an HTTP/S URL. If an HTTP/S URL is provided for SDK calls, it will be fetched and converted. Genkit handles HTTP/S URLs for Gemini calls. Expected format for data URI: data:<mimetype>;base64,<encoded_data>.'
+      'The item image as a data URI or an HTTP/S URL. Genkit handles HTTP/S URLs for Gemini calls. For direct SDK calls, HTTP/S URLs must be fetched and converted. Expected format for data URI: data:<mimetype>;base64,<encoded_data>.'
     ),
   model: z.enum(['googleai/gemini-2.0-flash', 'imagen3', 'imagen4']).describe('The AI model to use for generating the try-on image. "googleai/gemini-2.0-flash" uses Genkit with Gemini Flash (specifically googleai/gemini-2.0-flash-preview-image-generation). "imagen3" and "imagen4" are currently configured to throw an error as the direct SDK method for this try-on task is not supported for them.'),
 });
@@ -105,8 +116,7 @@ async function _callImagen3WithSDK(
     throw new Error("API key for Imagen is not configured.");
   }
 
-  // This will use the globally defined tryOnPromptText.
-  const currentTryOnPromptText = tryOnPromptText;
+  const currentTryOnPromptText = tryOnPromptText; // Using the global prompt
 
   try {
     const userImageDetails = getImageDetailsFromDataURI(userImageUri);
@@ -147,8 +157,8 @@ async function _callImagen3WithSDK(
     
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
-      model: "imagen-3.0-generate-002", 
-       safetySettings: [ 
+      model: "imagen-3.0-generate-002", // Specific model for Imagen 3 if supported this way
+       safetySettings: [ // Example safety settings, adjust as needed
         { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
         { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
         { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
@@ -161,6 +171,10 @@ async function _callImagen3WithSDK(
     
     const result = await model.generateContent({
       contents: [{ role: "user", parts }],
+      // generationConfig: { // Config for how the model generates images
+      //   candidateCount: 1, // Number of images to generate
+      //   // responseMimeType: "image/png" // Requesting PNG; API might return something else or base64 in inlineData
+      // },
     });
 
     const response = result.response;
@@ -195,13 +209,15 @@ async function _callImagen3WithSDK(
 
 export async function generateAiTryOn(input: GenerateAiTryOnInput): Promise<GenerateAiTryOnOutput> {
   if (input.model === 'imagen3' || input.model === 'imagen4') {
-    console.error(`Model ${input.model} (imagen-3.0-generate-002) is not supported for virtual try-on with the direct SDK's generateContent method.`);
+    // This path will now throw an error as per previous decision,
+    // because the direct SDK call for imagen-3.0-generate-002 with generateContent is not supported
+    // for this complex try-on task.
+    console.error(`Model ${input.model} (imagen-3.0-generate-002 or similar) is not supported for virtual try-on with the direct SDK's generateContent method for this task.`);
     throw new Error(`The selected Imagen model (${input.model}) is not supported for this virtual try-on task with the current SDK method (generateContent). Please use Gemini Flash instead.`);
-    // If _callImagen3WithSDK were to be called for a compatible Imagen "generateContent" scenario, it would be:
+    // If _callImagen3WithSDK were to be used for a compatible Imagen scenario, it would be:
     // return _callImagen3WithSDK(input.userImage, input.itemImage);
   } else if (input.model === 'googleai/gemini-2.0-flash') {
     let modelId = 'googleai/gemini-2.0-flash-preview-image-generation'; 
-    // Use the tryOnPromptText directly as productName is removed
     const currentTryOnPromptText = tryOnPromptText;
     
     let generationParams: any = {
@@ -213,10 +229,10 @@ export async function generateAiTryOn(input: GenerateAiTryOnInput): Promise<Gene
       ],
       config: {
         responseModalities: ['TEXT', 'IMAGE'],
-        temperature: 0.2,
+        temperature: 0.2, // Keeping temperature low for strict adherence
       },
     };
-    console.log(`Attempting AI try-on with Genkit (googleAI plugin). Model: ${modelId}, Temperature: 0.2`);
+    console.log(`Attempting AI try-on with Genkit (googleAI plugin). Model: ${modelId}, Temperature: ${generationParams.config.temperature}`);
     try {
       const {media} = await ai.generate(generationParams);
       if (!media || !media.url) {
@@ -248,43 +264,55 @@ const generateAiTryOnFlowDefinition = ai.defineFlow(
 
 const generateAiTryOnPromptDefinition = ai.definePrompt({
   name: 'generateAiTryOnPromptDefinition',
-  input: {schema: GenerateAiTryOnInputSchema},
+  input: {schema: GenerateAiTryOnInputSchema}, // productName removed from schema
   output: {schema: GenerateAiTryOnOutputSchema},
-  prompt: `You are a precision virtual try-on assistant. You will receive:
+  prompt: `SYSTEM / ASSISTANT PROMPT FOR HIGH-FIDELITY VIRTUAL TRY-ON
 
-User Image (Base Canvas) – {{media url=userImage}} – a photo of a person.
+You will be given two inputs:
 
-Product Image (Garment Source) – {{media url=itemImage}} – an isolated clothing item.
+User Image (the “Base Canvas”) – {{media url=userImage}} – a single photograph of a person.
 
-Your job: produce a single output image in which the person from the User Image is wearing the garment from the Product Image—without altering a single pixel of their face, head, hair, body shape or background.
+Product Image (the “Garment Source”) – {{media url=itemImage}} – a photo containing only one clothing item plus potentially extraneous elements (hanger, tags, background, mannequin, etc.).
 
-1. Lock Down the Base Image
-Treat the User Image as sacred: every pixel of the face, head (including facial expression, skin tone, hair color, hairstyle), body pose, and background must remain pixel-for-pixel identical in the final.
+Your mission: output a new image that is pixel-for-pixel identical to the User Image—except that the person is now wearing the garment. You must re-render the garment itself from the Product Image, removing all non-garment elements, and fit it naturally to the person’s pose and the scene’s lighting.
 
-Under no circumstances change or repaint any feature of the user’s face, hair, head or background.
+Step 1: Preserve the Base
+Lock every pixel of the User Image’s face, head (skin tone, expression, hairline, hair texture), exposed body parts, and background.
 
-2. Garment Extraction
-From the Product Image, isolate only the clothing item.
+In the final composite, these areas must be bit-identical to the original.
 
-Discard any model, mannequin, hanger or background—focus solely on the fabric, seams, silhouette and natural drape of the garment.
+Step 2: Garment Isolation & Reconstruction
+Detect and segment only the garment from the Product Image.
 
-3. Fit and Overlay
-Accurately map and warp the garment onto the user’s torso (or relevant body area) so it conforms perfectly to their existing pose and contours.
+Erase any hanger, tag, mannequin, shadow, or background artifact.
 
-Shadows and folds of the garment should respond realistically to the User Image’s lighting—but do not alter lighting on any exposed skin, face or hair.
+Reconstruct the garment’s true shape, texture, seams and drape—this is a new render of the cloth itself.
 
-4. Final Integrity Check
-After compositing, compare the input and output on a pixel level over the face, head, hair, and background. They must be identical.
+Step 3: Fit, Warp & Light-Match
+Warp and scale the reconstructed garment to the user’s body contours (shoulders, torso, sleeves) exactly, following their original pose.
 
-The only difference between input and output should be the presence of the new garment.
+Shade the garment so its highlights and shadows match the lighting direction and intensity of the User Image’s scene—but do not relight any part of the person or background.
 
-If any reflection, color bleed, or edge artifact touches the face or background, adjust so that no non-garment pixel is changed.
+Step 4: Composite with Zero-Leak Guarantee
+Overlay the re-rendered garment onto the Base Canvas.
 
-Important:
+Perform a pixel-level diff: if any non-garment pixel (face, hair, background, skin) differs from the original, remove or correct the change.
 
-Do not reconstruct or “re-render” the person—you are only performing a precise overlay.
+The composite must pass a mask check where only the garment region is altered.
 
-The final output must look as though the original photo was taken with the garment on, using the exact same facial features, lighting on the face, hair texture, and background.
+Final Output Requirements
+The person in the output must look exactly like the original photo (same face, hair, body pose, lighting, background).
 
-If you cannot guarantee 100% pixel-identical preservation of the user’s face, head, hair, and background, do not produce an output.`,
+The garment must appear as though it was actually worn in the original shot—no visible hanger fragments, mannequin shadows, or background remnants.
+
+Do not produce an output if you cannot guarantee complete non-alteration of the user’s face, head, hair or background.
+
+Key Constraints Recap
+
+Absolute non-alteration of user’s face, head, hair, body shape, and background—bit-for-bit preserved.
+
+Only the garment is re-rendered, cleaned of all extraneous artifacts, and composited.
+
+Zero compromise: if any non-garment pixel is changed, reject or fix until perfect.`,
 });
+
