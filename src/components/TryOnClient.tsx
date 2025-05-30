@@ -6,7 +6,7 @@ import Image from 'next/image';
 import type { Product } from '@/lib/products';
 // No longer importing TryOnPageProps from page.tsx
 import { ImageUploader } from '@/components/ImageUploader';
-import { ModelSelector } from '@/components/ModelSelector';
+import { ModelSelector, type ModelId } from '@/components/ModelSelector';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
@@ -35,7 +35,7 @@ export function TryOnClient({ params, product }: TryOnClientProps) {
   // Product data is now received as a prop, no need for useState for product or useEffect to fetch it.
   const [userImage, setUserImage] = useState<string | null>(null);
   const [validationResult, setValidationResult] = useState<ValidateImageOutput | null>(null);
-  const [selectedModel, setSelectedModel] = useState<string>('googleai/gemini-2.0-flash');
+  const [selectedModel, setSelectedModel] = useState<ModelId>('googleai/gemini-2.0-flash');
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [isLoadingValidation, setIsLoadingValidation] = useState(false);
   const [isLoadingGeneration, setIsLoadingGeneration] = useState(false);
@@ -136,7 +136,7 @@ export function TryOnClient({ params, product }: TryOnClientProps) {
         <CardHeader className="bg-muted/30">
           <div className="flex flex-col md:flex-row items-start md:items-center gap-4">
             <div className="relative w-full md:w-1/4 aspect-[3/4] md:aspect-square rounded-lg overflow-hidden border">
-              <Image src={product.imageUrl} alt={product.name} layout="fill" objectFit="cover" data-ai-hint={product.hint}/>
+              <Image src={product.imageUrl} alt={product.name} fill className="object-cover" data-ai-hint={product.hint}/>
             </div>
             <div className="flex-1">
               <CardTitle className="text-3xl font-bold">{product.name}</CardTitle>
@@ -209,7 +209,7 @@ export function TryOnClient({ params, product }: TryOnClientProps) {
               <h3 className="text-lg font-semibold text-center text-muted-foreground">Your Photo</h3>
               <div className="aspect-square w-full relative rounded-lg overflow-hidden border bg-muted">
                 {userImage ? (
-                  <Image src={userImage} alt="User uploaded" layout="fill" objectFit="contain" data-ai-hint="person model"/>
+                  <Image src={userImage} alt="User uploaded" fill className="object-contain" data-ai-hint="person model"/>
                 ) : (
                   <div className="flex items-center justify-center h-full">
                     <p className="text-muted-foreground">Upload your photo to see it here.</p>
@@ -222,7 +222,7 @@ export function TryOnClient({ params, product }: TryOnClientProps) {
               <div className="aspect-square w-full relative rounded-lg overflow-hidden border bg-muted">
                 {isLoadingGeneration && <div className="absolute inset-0 flex items-center justify-center bg-black/30 z-10"><LoadingSpinner text="Creating your look..." /></div>}
                 {generatedImage && !isLoadingGeneration ? (
-                  <Image src={generatedImage} alt="AI generated try-on" layout="fill" objectFit="contain" data-ai-hint="fashion try on"/>
+                  <Image src={generatedImage} alt="AI generated try-on" fill className="object-contain" data-ai-hint="fashion try on"/>
                 ) : !isLoadingGeneration && (
                   <div className="flex items-center justify-center h-full">
                     <p className="text-muted-foreground">Your AI generated image will appear here.</p>

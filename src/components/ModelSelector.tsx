@@ -4,17 +4,19 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { BrainCircuit } from "lucide-react";
 
-interface ModelSelectorProps {
-  selectedModel: string;
-  onModelChange: (model: string) => void;
-  disabled?: boolean;
-}
-
 const models = [
   { id: 'googleai/gemini-2.0-flash', name: 'Gemini Flash', description: 'Fast and versatile model.' },
   { id: 'imagen3', name: 'Imagen 3', description: 'Advanced image generation.' },
   { id: 'imagen4', name: 'Imagen 4', description: 'State-of-the-art capabilities.' },
-];
+] as const; // Use "as const" to infer literal types for ids
+
+export type ModelId = typeof models[number]['id'];
+
+interface ModelSelectorProps {
+  selectedModel: ModelId;
+  onModelChange: (model: ModelId) => void;
+  disabled?: boolean;
+}
 
 export function ModelSelector({ selectedModel, onModelChange, disabled }: ModelSelectorProps) {
   return (

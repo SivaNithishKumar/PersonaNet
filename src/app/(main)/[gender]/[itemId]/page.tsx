@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: TryOnPageProps) {
   };
 }
 
-export default function TryOnPage({ params }: TryOnPageProps) {
+export default async function TryOnPage({ params }: TryOnPageProps) {
   const product = getProductById(params.itemId);
 
   if (!product) {

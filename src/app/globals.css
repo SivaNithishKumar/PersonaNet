@@ -4,31 +4,31 @@
 
 @layer base {
   :root {
-    --background: 0 0% 94%; /* Light Gray #F0F0F0 */
+    --background: 30 25% 90%; /* WhatsApp Light Chat BG #ECE5DD */
     --foreground: 0 0% 20%; /* Dark Gray for readability on light bg */
 
-    --card: 0 0% 100%;
+    --card: 0 0% 100%; /* WhatsApp Incoming Bubble #FFFFFF */
     --card-foreground: 0 0% 3.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 3.9%;
 
-    --primary: 255 57% 67%; /* Lavender #9370DB */
-    --primary-foreground: 0 0% 98%; /* Light color for text on primary */
+    --primary: 174 80% 29%; /* WhatsApp Green #128C7E */
+    --primary-foreground: 0 0% 100%; /* White text */
 
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
+    --secondary: 174 80% 19%; /* WhatsApp Header Green #075E54 */
+    --secondary-foreground: 0 0% 90%; /* Light text for header */
 
     --muted: 0 0% 96.1%;
     --muted-foreground: 0 0% 45.1%;
 
-    --accent: 340 60% 65%; /* Soft Pink #DB7093 */
-    --accent-foreground: 0 0% 98%; /* Light color for text on accent */
+    --accent: 145 63% 49%; /* WhatsApp Accent Green #25D366 */
+    --accent-foreground: 0 0% 100%; /* White text */
     
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
     --border: 0 0% 89.8%;
     --input: 0 0% 89.8%;
-    --ring: 255 57% 67%; /* Primary color for rings */
+    --ring: 174 80% 29%; /* Primary green for rings */
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;
     --chart-3: 197 37% 24%;
@@ -38,31 +38,31 @@
   }
 
   .dark {
-    --background: 240 10% 10%; /* Dark Charcoal */
+    --background: 208 29% 10%; /* WhatsApp Dark BG #111B21 */
     --foreground: 0 0% 90%; /* Light Gray for text on dark bg */
 
-    --card: 240 10% 12%; /* Slightly lighter dark for cards */
+    --card: 203 25% 16%; /* WhatsApp Incoming Bubble #202C33 */
     --card-foreground: 0 0% 90%;
-    --popover: 240 10% 10%;
+    --popover: 208 29% 10%; /* Align with background */
     --popover-foreground: 0 0% 90%;
 
-    --primary: 255 57% 67%; /* Lavender #9370DB */
-    --primary-foreground: 0 0% 98%;
+    --primary: 174 80% 29%; /* WhatsApp Green #128C7E */
+    --primary-foreground: 0 0% 100%; /* White text */
 
-    --secondary: 240 10% 15%;
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 174 80% 19%; /* WhatsApp Header Green #075E54 */
+    --secondary-foreground: 0 0% 90%; /* Light text for header */
 
-    --muted: 240 10% 15%;
+    --muted: 240 10% 15%; /* Keeping this distinct for now */
     --muted-foreground: 0 0% 63.9%;
 
-    --accent: 340 60% 65%; /* Soft Pink #DB7093 */
-    --accent-foreground: 0 0% 98%;
+    --accent: 145 63% 49%; /* WhatsApp Accent Green #25D366 */
+    --accent-foreground: 0 0% 100%; /* White text */
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 10% 20%;
-    --input: 240 10% 20%;
-    --ring: 255 57% 67%; /* Primary color for rings */
+    --border: 203 25% 20%; /* Related to card color */
+    --input: 203 25% 20%; /* Related to card color */
+    --ring: 174 80% 29%; /* Primary green for rings */
     --chart-1: 220 70% 50%;
     --chart-2: 160 60% 45%;
     --chart-3: 30 80% 55%;
